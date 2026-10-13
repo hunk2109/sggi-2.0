@@ -1,4 +1,4 @@
-﻿class MemberModel {
+class MemberModel {
   final String id;
   final String? userId;
   final String? memberCode;
@@ -53,7 +53,7 @@
 
   String get statusLabel {
     if (isSuspended) return 'Suspendido';
-    if (!hasMembership || activePlanName == null) return 'Sin Plan';
+    if (!hasMembership && activePlanName == null) return 'Sin Plan';
     if (hasPendingPayment) return 'Pago Pendiente';
     if (isExpired) return 'Vencido';
     return 'Al Día';
@@ -70,14 +70,44 @@
     // Membresía activa si viene anidada
     String? planName;
     DateTime? endDate;
-    final activeMem = json['activeMembership'] as Map<String, dynamic>? ?? json['membership'] as Map<String, dynamic>?;
+    Map<String, dynamic>? activeMem = json['activeMembership'] as Map<String, dynamic>? ??
+        json['membership'] as Map<String, dynamic>? ??
+        json['currentMembership'] as Map<String, dynamic>?;
+
+    if (activeMem == null && json['memberships'] is List && (json['memberships'] as List).isNotEmpty) {
+      final list = json['memberships'] as List;
+      final found = list.firstWhere(
+        (m) => m is Map && (m['isActive'] == true || m['endDate'] != null),
+        orElse: () => list.first,
+      );
+      if (found is Map) {
+        activeMem = found.cast<String, dynamic>();
+      }
+    }
+
     if (activeMem != null) {
-      final innerPlan = activeMem['membership'] as Map<String, dynamic>?;
-      planName = innerPlan?['name']?.toString() ?? activeMem['name']?.toString();
+      final innerPlan = activeMem['membership'] as Map<String, dynamic>? ??
+          activeMem['plan'] as Map<String, dynamic>?;
+      planName = innerPlan?['name']?.toString() ??
+          activeMem['name']?.toString() ??
+          activeMem['membershipName']?.toString();
       final rawEnd = activeMem['endDate']?.toString() ?? activeMem['acc_enddate']?.toString();
       if (rawEnd != null) {
         endDate = DateTime.tryParse(rawEnd);
       }
+    }
+
+    if (planName == null && json['membership'] is Map) {
+      planName = (json['membership'] as Map)['name']?.toString();
+    }
+
+    final bool hasMem = json['hasMembership'] == true ||
+        json['hasMembership'] == 1 ||
+        planName != null ||
+        (activeMem != null && activeMem['isActive'] != false);
+
+    if (hasMem && planName == null) {
+      planName = 'Plan Activo';
     }
 
     DateTime parsedJoin = DateTime.now();
@@ -107,7 +137,7 @@
       emergencyPhone: json['emergencyPhone']?.toString(),
       joinDate: parsedJoin,
       isPaid: json['isPaid'] == true || json['isPaid'] == 1,
-      hasMembership: json['hasMembership'] == true || json['hasMembership'] == 1 || planName != null,
+      hasMembership: hasMem,
       hasPendingPayment: json['hasPendingPayment'] == true || json['hasPendingPayment'] == 1,
       activePlanName: planName,
       membershipEndDate: endDate,

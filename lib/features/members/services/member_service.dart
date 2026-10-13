@@ -1,4 +1,4 @@
-﻿import 'package:dio/dio.dart';
+import 'package:dio/dio.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/network/api_client.dart';
 import '../models/member_model.dart';
@@ -46,8 +46,13 @@ class MemberService {
     }
   }
 
-  Future<List<MemberModel>> searchMembers(String query, {int limit = 50}) async {
+  Future<List<MemberModel>> searchMembers(String query, {int limit = 100}) async {
     try {
+      if (query.trim().isEmpty) {
+        final res = await getMembers(page: 1, limit: 25);
+        return res.members;
+      }
+
       final response = await _apiClient.dio.get(
         '${ApiConstants.members}/search',
         queryParameters: {'q': query.trim(), 'limit': limit},
@@ -58,7 +63,13 @@ class MemberService {
 
       if (payload is Map && payload.containsKey('data')) {
         final inner = payload['data'];
-        if (inner is List) list = inner;
+        if (inner is Map && inner['data'] is List) {
+          list = inner['data'] as List;
+        } else if (inner is Map && inner['members'] is List) {
+          list = inner['members'] as List;
+        } else if (inner is List) {
+          list = inner;
+        }
       } else if (payload is List) {
         list = payload;
       }
@@ -121,5 +132,64 @@ class MemberService {
 
   Future<void> deleteMember(String id) async {
     await _apiClient.dio.delete('${ApiConstants.members}/$id');
+  }
+
+  Future<List<Map<String, dynamic>>> getMembershipsHistory(String memberId) async {
+    try {
+      final response = await _apiClient.dio.get('${ApiConstants.memberMemberships}/history/$memberId');
+      final payload = response.data;
+      if (payload is Map && payload.containsKey('data')) {
+        final inner = payload['data'];
+        if (inner is List) return inner.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        if (inner is Map && inner['data'] is List) {
+          return (inner['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        }
+      } else if (payload is List) {
+        return payload.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  Future<Map<String, dynamic>> getPaymentHistory(String memberId) async {
+    try {
+      final response = await _apiClient.dio.get('${ApiConstants.payments}/member/$memberId');
+      final payload = response.data;
+      if (payload is Map && payload.containsKey('data')) {
+        final inner = payload['data'];
+        if (inner is Map) return Map<String, dynamic>.from(inner);
+      } else if (payload is Map) {
+        return Map<String, dynamic>.from(payload);
+      }
+      return {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getAttendancesHistory(String memberId, {int limit = 50}) async {
+    try {
+      final response = await _apiClient.dio.get(
+        '${ApiConstants.attendances}/member/$memberId',
+        queryParameters: {'limit': limit},
+      );
+      final payload = response.data;
+      if (payload is Map && payload.containsKey('data')) {
+        final inner = payload['data'];
+        if (inner is Map && inner['data'] is List) {
+          return (inner['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        }
+        if (inner is List) {
+          return inner.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        }
+      } else if (payload is List) {
+        return payload.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
   }
 }

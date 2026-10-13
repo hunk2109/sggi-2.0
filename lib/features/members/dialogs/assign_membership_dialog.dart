@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_theme.dart';
@@ -30,20 +30,53 @@ class _AssignMembershipDialogState extends ConsumerState<AssignMembershipDialog>
 
     setState(() => _isLoading = true);
 
-    final success = await ref.read(membersProvider.notifier).assignMembership(
+    final plans = ref.read(activeMembershipsProvider).value ?? [];
+    final selectedPlan = plans.where((p) => p.id == _selectedPlanId).firstOrNull;
+    DateTime calculatedEnd;
+    if (selectedPlan != null && selectedPlan.durationDays != null && selectedPlan.durationDays! > 0) {
+      calculatedEnd = _startDate.add(Duration(days: selectedPlan.durationDays!));
+    } else if (selectedPlan != null) {
+      calculatedEnd = DateTime(_startDate.year, _startDate.month + selectedPlan.durationMonths, _startDate.day);
+    } else {
+      calculatedEnd = DateTime(_startDate.year, _startDate.month + 1, _startDate.day);
+    }
+
+    final result = await ref.read(membersProvider.notifier).assignMembership(
       memberId: widget.member.id,
       membershipId: _selectedPlanId!,
       startDate: DateFormat('yyyy-MM-dd').format(_startDate),
+      endDate: DateFormat('yyyy-MM-dd').format(calculatedEnd),
       paymentMethod: _paymentMethod,
     );
 
     if (mounted) {
       setState(() => _isLoading = false);
-      if (success) {
+      if (result.success) {
         Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Membresía asignada correctamente'), backgroundColor: AppTheme.success),
-        );
+        if (result.warning != null && result.warning!.isNotEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 24),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Membresía asignada internamente.\nAdvertencia de biométrico: ${result.warning!}',
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.orange.shade800,
+              duration: const Duration(seconds: 7),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Membresía asignada y sincronizada correctamente'), backgroundColor: AppTheme.success),
+          );
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Error al asignar membresía'), backgroundColor: AppTheme.error),

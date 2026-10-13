@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:window_manager/window_manager.dart';
 import 'core/storage/storage_service.dart';
 import 'core/theme/app_theme.dart';
@@ -9,6 +10,12 @@ import 'features/shell/screens/main_shell_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Intl Spanish locale data
+  try {
+    await initializeDateFormatting('es_DO', null);
+    await initializeDateFormatting('es', null);
+  } catch (_) {}
 
   // Desktop Window Configuration
   await windowManager.ensureInitialized();

@@ -1,13 +1,19 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:window_manager/window_manager.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../access/screens/access_control_screen.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../dashboard/screens/dashboard_screen.dart';
 import '../../members/screens/members_screen.dart';
+import '../../pos/screens/pos_screen.dart';
+import '../../cash_register/screens/cash_register_screen.dart';
+import '../../inventory/screens/inventory_screen.dart';
+import '../../employees/screens/employees_screen.dart';
+import '../../settings/screens/settings_screen.dart';
 
 class MainShellScreen extends ConsumerStatefulWidget {
   const MainShellScreen({super.key});
@@ -24,13 +30,14 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
 
   final List<({String title, IconData icon, String shortcut})> _navItems = [
     (title: 'Dashboard', icon: Icons.dashboard_outlined, shortcut: ''),
-    (title: 'Punto de Venta', icon: Icons.point_of_sale, shortcut: 'F1'),
+    (title: 'Punto de Venta', icon: Icons.point_of_sale_outlined, shortcut: 'F1'),
     (title: 'Socios & Membresías', icon: Icons.people_alt_outlined, shortcut: 'F2'),
     (title: 'Control de Acceso', icon: Icons.door_sliding_outlined, shortcut: 'F3'),
     (title: 'Caja & Arqueo', icon: Icons.account_balance_wallet_outlined, shortcut: 'F4'),
     (title: 'Inventario & Productos', icon: Icons.inventory_2_outlined, shortcut: 'F5'),
     (title: 'Nómina & Empleados', icon: Icons.badge_outlined, shortcut: 'F6'),
     (title: 'Reportes & Métricas', icon: Icons.bar_chart_outlined, shortcut: 'F7'),
+    (title: 'Configuración', icon: Icons.settings_outlined, shortcut: 'F8'),
   ];
 
   @override
@@ -41,8 +48,17 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
   }
 
   void _updateClock() {
+    final now = DateTime.now();
     setState(() {
-      _currentTime = DateFormat('hh:mm:ss a').format(DateTime.now());
+      try {
+        _currentTime = DateFormat('hh:mm:ss a   EEE d MMM', 'es_DO').format(now);
+      } catch (_) {
+        try {
+          _currentTime = DateFormat('hh:mm:ss a   EEE d MMM', 'es').format(now);
+        } catch (_) {
+          _currentTime = DateFormat('hh:mm:ss a').format(now);
+        }
+      }
     });
   }
 
@@ -53,46 +69,50 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
   }
 
   void _handleKeyEvent(KeyEvent event) {
-    if (event is! KeyDownEvent) return;
-
-    if (event.logicalKey == LogicalKeyboardKey.f1) {
-      setState(() => _selectedIndex = 1);
-    } else if (event.logicalKey == LogicalKeyboardKey.f2) {
-      setState(() => _selectedIndex = 2);
-    } else if (event.logicalKey == LogicalKeyboardKey.f3) {
-      setState(() => _selectedIndex = 3);
-    } else if (event.logicalKey == LogicalKeyboardKey.f4) {
-      setState(() => _selectedIndex = 4);
-    } else if (event.logicalKey == LogicalKeyboardKey.f5) {
-      setState(() => _selectedIndex = 5);
-    } else if (event.logicalKey == LogicalKeyboardKey.f6) {
-      setState(() => _selectedIndex = 6);
-    } else if (event.logicalKey == LogicalKeyboardKey.f7) {
-      setState(() => _selectedIndex = 7);
+    if (event is KeyDownEvent) {
+      if (event.logicalKey == LogicalKeyboardKey.f1) {
+        setState(() => _selectedIndex = 1);
+      } else if (event.logicalKey == LogicalKeyboardKey.f2) {
+        setState(() => _selectedIndex = 2);
+      } else if (event.logicalKey == LogicalKeyboardKey.f3) {
+        setState(() => _selectedIndex = 3);
+      } else if (event.logicalKey == LogicalKeyboardKey.f4) {
+        setState(() => _selectedIndex = 4);
+      } else if (event.logicalKey == LogicalKeyboardKey.f5) {
+        setState(() => _selectedIndex = 5);
+      } else if (event.logicalKey == LogicalKeyboardKey.f6) {
+        setState(() => _selectedIndex = 6);
+      } else if (event.logicalKey == LogicalKeyboardKey.f7) {
+        setState(() => _selectedIndex = 7);
+      } else if (event.logicalKey == LogicalKeyboardKey.f8) {
+        setState(() => _selectedIndex = 8);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final user = ref.watch(authProvider).user;
+    final authState = ref.watch(authProvider);
+    final user = authState.user;
 
     return KeyboardListener(
-      focusNode: FocusNode()..requestFocus(),
+      focusNode: FocusNode(),
+      autofocus: true,
       onKeyEvent: _handleKeyEvent,
       child: Scaffold(
         body: Column(
           children: [
-            // Top Window Bar (Native Desktop Drag & Controls)
+            // Custom Desktop Titlebar
             _buildCustomTitleBar(),
 
-            // Main Body (Sidebar + Content)
+            // Main Application View
             Expanded(
               child: Row(
                 children: [
                   // Collapsible Sidebar
-                  _buildSidebar(),
+                  _buildSidebar(context),
 
-                  // Active Content
+                  // Content Area
                   Expanded(
                     child: Container(
                       color: Theme.of(context).scaffoldBackgroundColor,
@@ -122,27 +142,28 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
             child: DragToMoveArea(
               child: Row(
                 children: [
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 14),
                   const Icon(Icons.fitness_center, size: 16, color: AppTheme.primary),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 10),
                   const Text(
                     'SGGI 2.0  •  Gestión de Gimnasio',
                     style: TextStyle(
                       fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
                       color: Colors.white70,
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.06),
+                      color: Colors.white10,
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: const Text(
                       'Windows Native Desktop',
-                      style: TextStyle(fontSize: 10, color: Colors.white38),
+                      style: TextStyle(fontSize: 10, color: Colors.white54),
                     ),
                   ),
                 ],
@@ -150,59 +171,68 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
             ),
           ),
 
-          // Window Buttons (Minimize, Maximize, Close)
+          // Native Window Buttons
           _buildWindowButton(
             icon: Icons.minimize,
-            onTap: () => windowManager.minimize(),
+            onPressed: () async => await windowManager.minimize(),
           ),
           _buildWindowButton(
             icon: Icons.crop_square,
-            onTap: () async {
+            onPressed: () async {
               if (await windowManager.isMaximized()) {
-                windowManager.unmaximize();
+                await windowManager.unmaximize();
               } else {
-                windowManager.maximize();
+                await windowManager.maximize();
               }
             },
           ),
           _buildWindowButton(
             icon: Icons.close,
             isClose: true,
-            onTap: () => windowManager.close(),
+            onPressed: () async => await windowManager.close(),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildWindowButton({
-    required IconData icon,
-    required VoidCallback onTap,
-    bool isClose = false,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      hoverColor: isClose ? Colors.red : Colors.white.withValues(alpha: 0.1),
-      child: SizedBox(
-        width: 46,
-        height: 38,
-        child: Center(
-          child: Icon(icon, size: 14, color: Colors.white70),
+  Widget _buildWindowButton({required IconData icon, required VoidCallback onPressed, bool isClose = false}) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        hoverColor: isClose ? Colors.red : Colors.white10,
+        onTap: onPressed,
+        child: SizedBox(
+          width: 46,
+          height: 38,
+          child: Icon(
+            icon,
+            size: 15,
+            color: Colors.white70,
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildSidebar() {
+  Widget _buildSidebar(BuildContext context) {
+    final width = _isSidebarCollapsed ? 68.0 : 230.0;
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
-      width: _isSidebarCollapsed ? 68 : 240,
-      color: const Color(0xFF1A1E24),
+      width: width,
+      decoration: const BoxDecoration(
+        color: Color(0xFF1B2028),
+        border: Border(
+          right: BorderSide(color: Color(0xFF2A303C), width: 1),
+        ),
+      ),
       child: Column(
         children: [
-          // Collapse / Expand Toggle
+          // Sidebar Toggle & Header
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            height: 52,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
             child: Row(
               mainAxisAlignment: _isSidebarCollapsed ? MainAxisAlignment.center : MainAxisAlignment.spaceBetween,
               children: [
@@ -330,8 +360,20 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
     switch (_selectedIndex) {
       case 0:
         return DashboardScreen(onNavigate: (index) => setState(() => _selectedIndex = index));
+      case 1:
+        return const PosScreen();
       case 2:
         return const MembersScreen();
+      case 3:
+        return const AccessControlScreen();
+      case 4:
+        return const CashRegisterScreen();
+      case 5:
+        return const InventoryScreen();
+      case 6:
+        return const EmployeesScreen();
+      case 8:
+        return const SettingsScreen();
       default:
         final current = _navItems[_selectedIndex];
         return Center(
@@ -345,9 +387,9 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
                 style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              Text(
-                'Módulo preparado para implementación en Fase ${_selectedIndex <= 3 ? 2 : 3}',
-                style: const TextStyle(color: Colors.grey),
+              const Text(
+                'Módulo preparado para Reportes & Métricas Avanzadas (Fase 4)',
+                style: TextStyle(color: Colors.grey),
               ),
             ],
           ),
@@ -418,4 +460,3 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
     );
   }
 }
-

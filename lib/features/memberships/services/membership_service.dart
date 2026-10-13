@@ -1,4 +1,4 @@
-﻿import 'package:dio/dio.dart';
+import 'package:dio/dio.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/network/api_client.dart';
 import '../models/membership_model.dart';
@@ -43,23 +43,38 @@ class MembershipService {
     }
   }
 
-  Future<bool> assignMembership({
+  Future<({bool success, String? warning})> assignMembership({
     required String memberId,
     required String membershipId,
     required String startDate,
+    String? endDate,
     String paymentMethod = 'cash',
   }) async {
     try {
-      await _apiClient.dio.post(
+      final data = <String, dynamic>{
+        'memberId': memberId,
+        'membershipId': membershipId,
+        'startDate': startDate,
+        'paymentMethod': paymentMethod,
+      };
+      if (endDate != null && endDate.isNotEmpty) {
+        data['endDate'] = endDate;
+      }
+      final response = await _apiClient.dio.post(
         ApiConstants.memberMemberships,
-        data: {
-          'memberId': memberId,
-          'membershipId': membershipId,
-          'startDate': startDate,
-          'paymentMethod': paymentMethod,
-        },
+        data: data,
       );
-      return true;
+
+      String? warning;
+      final payload = response.data;
+      if (payload is Map) {
+        final inner = payload['data'] ?? payload;
+        if (inner is Map && inner['warning'] != null) {
+          warning = inner['warning']?.toString();
+        }
+      }
+
+      return (success: true, warning: warning);
     } on DioException catch (e) {
       throw Exception(e.response?.data?['message'] ?? 'Error asignando membresía');
     }

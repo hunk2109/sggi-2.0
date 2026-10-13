@@ -1,10 +1,13 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../../core/theme/app_theme.dart';
+import '../models/member_model.dart';
 import '../providers/members_provider.dart';
 
 class NewMemberDialog extends ConsumerStatefulWidget {
-  const NewMemberDialog({super.key});
+  final MemberModel? memberToEdit;
+
+  const NewMemberDialog({super.key, this.memberToEdit});
 
   @override
   ConsumerState<NewMemberDialog> createState() => _NewMemberDialogState();
@@ -12,14 +15,36 @@ class NewMemberDialog extends ConsumerStatefulWidget {
 
 class _NewMemberDialogState extends ConsumerState<NewMemberDialog> {
   final _formKey = GlobalKey<FormState>();
-  final _firstNameController = TextEditingController();
-  final _lastNameController = TextEditingController();
-  final _phoneController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _documentIdController = TextEditingController();
-  final _addressController = TextEditingController();
+
+  late final TextEditingController _firstNameController;
+  late final TextEditingController _lastNameController;
+  late final TextEditingController _phoneController;
+  late final TextEditingController _emailController;
+  late final TextEditingController _documentIdController;
+  late final TextEditingController _addressController;
+  late final TextEditingController _emergencyContactController;
+  late final TextEditingController _emergencyPhoneController;
+
   String _gender = 'M';
   bool _isLoading = false;
+
+  bool get _isEditing => widget.memberToEdit != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final m = widget.memberToEdit;
+    _firstNameController = TextEditingController(text: m?.firstName ?? '');
+    _lastNameController = TextEditingController(text: m?.lastName ?? '');
+    _phoneController = TextEditingController(text: m?.phone ?? '');
+    _emailController = TextEditingController(text: m?.email ?? '');
+    _documentIdController = TextEditingController(text: m?.documentId ?? '');
+    _addressController = TextEditingController(text: m?.address ?? '');
+    _emergencyContactController = TextEditingController(text: m?.emergencyContact ?? '');
+    _emergencyPhoneController = TextEditingController(text: m?.emergencyPhone ?? '');
+    _gender = m?.gender ?? 'M';
+    if (_gender != 'M' && _gender != 'F') _gender = 'M';
+  }
 
   @override
   void dispose() {
@@ -29,6 +54,8 @@ class _NewMemberDialogState extends ConsumerState<NewMemberDialog> {
     _emailController.dispose();
     _documentIdController.dispose();
     _addressController.dispose();
+    _emergencyContactController.dispose();
+    _emergencyPhoneController.dispose();
     super.dispose();
   }
 
@@ -41,32 +68,41 @@ class _NewMemberDialogState extends ConsumerState<NewMemberDialog> {
       'firstName': _firstNameController.text.trim(),
       'lastName': _lastNameController.text.trim(),
       'phone': _phoneController.text.trim(),
-      'email': _emailController.text.trim().isNotEmpty ? _emailController.text.trim() : null,
-      'documentId': _documentIdController.text.trim().isNotEmpty ? _documentIdController.text.trim() : null,
-      'address': _addressController.text.trim().isNotEmpty ? _addressController.text.trim() : null,
+      'documentId': _documentIdController.text.trim(),
+      'email': _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
       'gender': _gender,
+      'address': _addressController.text.trim().isEmpty ? null : _addressController.text.trim(),
+      'emergencyContact': _emergencyContactController.text.trim().isEmpty ? null : _emergencyContactController.text.trim(),
+      'emergencyPhone': _emergencyPhoneController.text.trim().isEmpty ? null : _emergencyPhoneController.text.trim(),
     };
 
-    final success = await ref.read(membersProvider.notifier).createMember(data);
+    final notifier = ref.read(membersProvider.notifier);
+    bool success;
 
-    if (mounted) {
-      setState(() => _isLoading = false);
-      if (success) {
-        Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Socio registrado exitosamente'),
-            backgroundColor: AppTheme.success,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error al registrar socio. Revisa los datos.'),
-            backgroundColor: AppTheme.error,
-          ),
-        );
-      }
+    if (_isEditing) {
+      success = await notifier.updateMember(widget.memberToEdit!.id, data);
+    } else {
+      success = await notifier.createMember(data);
+    }
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    if (success) {
+      Navigator.of(context).pop(true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_isEditing ? 'Socio actualizado exitosamente' : 'Socio registrado exitosamente'),
+          backgroundColor: AppTheme.success,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_isEditing ? 'Error al actualizar socio' : 'Error al registrar socio. Revisa los datos.'),
+          backgroundColor: AppTheme.error,
+        ),
+      );
     }
   }
 
@@ -76,7 +112,7 @@ class _NewMemberDialogState extends ConsumerState<NewMemberDialog> {
       backgroundColor: Theme.of(context).cardColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Container(
-        width: 580,
+        width: 620,
         padding: const EdgeInsets.all(28),
         child: Form(
           key: _formKey,
@@ -88,13 +124,17 @@ class _NewMemberDialogState extends ConsumerState<NewMemberDialog> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Row(
+                  Row(
                     children: [
-                      Icon(Icons.person_add_outlined, color: AppTheme.primary, size: 24),
-                      SizedBox(width: 12),
+                      Icon(
+                        _isEditing ? Icons.edit_note_outlined : Icons.person_add_outlined,
+                        color: AppTheme.primary,
+                        size: 26,
+                      ),
+                      const SizedBox(width: 12),
                       Text(
-                        'Registrar Nuevo Socio',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        _isEditing ? 'Editar Datos del Socio' : 'Registrar Nuevo Socio',
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
@@ -106,7 +146,7 @@ class _NewMemberDialogState extends ConsumerState<NewMemberDialog> {
               ),
               const Divider(height: 24),
 
-              // Two Column Form
+              // Two Column Form: Names
               Row(
                 children: [
                   Expanded(
@@ -117,7 +157,7 @@ class _NewMemberDialogState extends ConsumerState<NewMemberDialog> {
                         const SizedBox(height: 6),
                         TextFormField(
                           controller: _firstNameController,
-                          autofocus: true,
+                          autofocus: !_isEditing,
                           decoration: const InputDecoration(hintText: 'Ej. Juan'),
                           validator: (v) => v?.trim().isEmpty == true ? 'Requerido' : null,
                         ),
@@ -144,6 +184,7 @@ class _NewMemberDialogState extends ConsumerState<NewMemberDialog> {
 
               const SizedBox(height: 16),
 
+              // Phone & Document ID
               Row(
                 children: [
                   Expanded(
@@ -179,6 +220,7 @@ class _NewMemberDialogState extends ConsumerState<NewMemberDialog> {
 
               const SizedBox(height: 16),
 
+              // Email & Gender
               Row(
                 children: [
                   Expanded(
@@ -217,6 +259,7 @@ class _NewMemberDialogState extends ConsumerState<NewMemberDialog> {
 
               const SizedBox(height: 16),
 
+              // Address
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -225,6 +268,41 @@ class _NewMemberDialogState extends ConsumerState<NewMemberDialog> {
                   TextFormField(
                     controller: _addressController,
                     decoration: const InputDecoration(hintText: 'Calle, sector, ciudad'),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+
+              // Emergency Contact Row
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Contacto de Emergencia', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 6),
+                        TextFormField(
+                          controller: _emergencyContactController,
+                          decoration: const InputDecoration(hintText: 'Nombre de familiar / amigo'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Teléfono de Emergencia', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 6),
+                        TextFormField(
+                          controller: _emergencyPhoneController,
+                          decoration: const InputDecoration(hintText: '809-555-9999'),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -248,7 +326,7 @@ class _NewMemberDialogState extends ConsumerState<NewMemberDialog> {
                             height: 18,
                             child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                           )
-                        : const Text('Guardar Socio'),
+                        : Text(_isEditing ? 'Guardar Cambios' : 'Guardar Socio'),
                   ),
                 ],
               ),

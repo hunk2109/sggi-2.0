@@ -1,4 +1,5 @@
-﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:async';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../models/member_model.dart';
 import '../services/member_service.dart';
@@ -81,6 +82,8 @@ class MembersState {
 }
 
 class MembersNotifier extends Notifier<MembersState> {
+  Timer? _debounceTimer;
+
   @override
   MembersState build() {
     // Initial fetch on mount
@@ -93,8 +96,9 @@ class MembersNotifier extends Notifier<MembersState> {
     final service = ref.read(memberServiceProvider);
 
     try {
-      if (state.searchQuery.isNotEmpty) {
-        final results = await service.searchMembers(state.searchQuery);
+      final q = state.searchQuery.trim();
+      if (q.isNotEmpty) {
+        final results = await service.searchMembers(q);
         state = state.copyWith(
           isLoading: false,
           members: results,
@@ -118,8 +122,17 @@ class MembersNotifier extends Notifier<MembersState> {
   }
 
   void search(String query) {
+    _debounceTimer?.cancel();
     state = state.copyWith(searchQuery: query);
-    loadMembers(page: 1);
+
+    if (query.trim().isEmpty) {
+      loadMembers(page: 1);
+      return;
+    }
+
+    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+      loadMembers(page: 1);
+    });
   }
 
   void setFilter(String filter) {
@@ -142,25 +155,51 @@ class MembersNotifier extends Notifier<MembersState> {
     }
   }
 
-  Future<bool> assignMembership({
-    required String memberId,
-    required String membershipId,
-    required String startDate,
-    String paymentMethod = 'cash',
-  }) async {
-    final service = ref.read(membershipServiceProvider);
+  Future<bool> updateMember(String id, Map<String, dynamic> data) async {
+    final service = ref.read(memberServiceProvider);
     try {
-      await service.assignMembership(
-        memberId: memberId,
-        membershipId: membershipId,
-        startDate: startDate,
-        paymentMethod: paymentMethod,
-      );
+      await service.updateMember(id, data);
       await loadMembers(page: state.currentPage);
       return true;
     } catch (e) {
       state = state.copyWith(error: e.toString());
       return false;
+    }
+  }
+
+  Future<bool> deleteMember(String id) async {
+    final service = ref.read(memberServiceProvider);
+    try {
+      await service.deleteMember(id);
+      await loadMembers(page: state.currentPage);
+      return true;
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+      return false;
+    }
+  }
+
+  Future<({bool success, String? warning})> assignMembership({
+    required String memberId,
+    required String membershipId,
+    required String startDate,
+    String? endDate,
+    String paymentMethod = 'cash',
+  }) async {
+    final service = ref.read(membershipServiceProvider);
+    try {
+      final res = await service.assignMembership(
+        memberId: memberId,
+        membershipId: membershipId,
+        startDate: startDate,
+        endDate: endDate,
+        paymentMethod: paymentMethod,
+      );
+      await loadMembers(page: state.currentPage);
+      return res;
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+      return (success: false, warning: null);
     }
   }
 }
