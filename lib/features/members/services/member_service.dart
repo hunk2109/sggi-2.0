@@ -192,4 +192,16 @@ class MemberService {
       return [];
     }
   }
+
+  Future<bool> payPayment(String paymentId, {String paymentMethod = 'cash'}) async {
+    try {
+      await _apiClient.dio.post(
+        '${ApiConstants.payments}/$paymentId/pay',
+        data: {'paymentMethod': paymentMethod},
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 }

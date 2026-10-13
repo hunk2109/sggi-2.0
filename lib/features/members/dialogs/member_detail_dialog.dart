@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -548,6 +548,7 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
               DataColumn(label: Text('Método', style: TextStyle(fontWeight: FontWeight.bold))),
               DataColumn(label: Text('Referencia / Recibo', style: TextStyle(fontWeight: FontWeight.bold))),
               DataColumn(label: Text('Estado', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('Acción', style: TextStyle(fontWeight: FontWeight.bold))),
             ],
             rows: paymentsList.map((p) {
               final rawDate = p['paymentDate']?.toString() ?? p['createdAt']?.toString();
@@ -556,6 +557,8 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
               final method = p['paymentMethod']?.toString() ?? 'Efectivo';
               final refCode = p['receiptNumber']?.toString() ?? p['reference']?.toString() ?? p['id']?.toString().substring(0, 8) ?? '-';
               final status = p['status']?.toString() ?? 'COMPLETED';
+              final isPending = status.toLowerCase() == 'pending';
+              final paymentId = p['id']?.toString() ?? '';
 
               return DataRow(
                 cells: [
@@ -564,6 +567,20 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
                   DataCell(Text(_translateMethod(method))),
                   DataCell(Text(refCode, style: const TextStyle(color: Colors.white70, fontSize: 12))),
                   DataCell(_buildPaymentStatusBadge(status)),
+                  DataCell(
+                    isPending && paymentId.isNotEmpty
+                        ? ElevatedButton.icon(
+                            icon: const Icon(Icons.point_of_sale, size: 14),
+                            label: const Text('Cobrar', style: TextStyle(fontSize: 11)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.success,
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              minimumSize: const Size(0, 28),
+                            ),
+                            onPressed: () => _openPayDialog(paymentId, amount),
+                          )
+                        : const Text('-', style: TextStyle(color: Colors.white38)),
+                  ),
                 ],
               );
             }).toList(),
@@ -571,6 +588,69 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
         ),
       ),
     );
+  }
+
+  Future<void> _openPayDialog(String paymentId, double amount) async {
+    String selectedMethod = 'cash';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF1E232B),
+          title: const Text('Cobrar Cuota Pendiente', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Monto a cobrar: ${_currencyFormat.format(amount)}',
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.greenAccent),
+              ),
+              const SizedBox(height: 16),
+              const Text('Método de Pago *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                initialValue: selectedMethod,
+                dropdownColor: const Color(0xFF252A34),
+                items: const [
+                  DropdownMenuItem(value: 'cash', child: Text('Efectivo')),
+                  DropdownMenuItem(value: 'card', child: Text('Tarjeta de Crédito / Débito')),
+                  DropdownMenuItem(value: 'transfer', child: Text('Transferencia Bancaria')),
+                ],
+                onChanged: (v) => setDialogState(() => selectedMethod = v ?? 'cash'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.success),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Confirmar Cobro'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed == true) {
+      final s = ref.read(memberServiceProvider);
+      final ok = await s.payPayment(paymentId, paymentMethod: selectedMethod);
+      if (!mounted) return;
+      if (ok) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Pago de ${_currencyFormat.format(amount)} registrado y cargado a caja'),
+            backgroundColor: AppTheme.success,
+          ),
+        );
+        _loadAllHistory();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error al registrar el pago'), backgroundColor: AppTheme.error),
+        );
+      }
+    }
   }
 
   // TAB 3: Asistencias

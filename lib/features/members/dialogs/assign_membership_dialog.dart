@@ -195,9 +195,10 @@ class _AssignMembershipDialogState extends ConsumerState<AssignMembershipDialog>
             DropdownButtonFormField<String>(
               initialValue: _paymentMethod,
               items: const [
-                DropdownMenuItem(value: 'cash', child: Text('Efectivo')),
-                DropdownMenuItem(value: 'card', child: Text('Tarjeta de Crédito / Débito')),
-                DropdownMenuItem(value: 'transfer', child: Text('Transferencia Bancaria')),
+                DropdownMenuItem(value: 'cash', child: Text('Efectivo (Cobrado de inmediato)')),
+                DropdownMenuItem(value: 'card', child: Text('Tarjeta de Crédito / Débito (Cobrado)')),
+                DropdownMenuItem(value: 'transfer', child: Text('Transferencia Bancaria (Cobrado)')),
+                DropdownMenuItem(value: 'pending', child: Text('Dejar Pendiente (Por cobrar después)')),
               ],
               onChanged: (v) => setState(() => _paymentMethod = v ?? 'cash'),
             ),
