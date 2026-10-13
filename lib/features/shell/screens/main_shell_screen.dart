@@ -7,6 +7,7 @@ import 'package:window_manager/window_manager.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../dashboard/screens/dashboard_screen.dart';
+import '../../members/screens/members_screen.dart';
 
 class MainShellScreen extends ConsumerStatefulWidget {
   const MainShellScreen({super.key});
@@ -329,6 +330,8 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
     switch (_selectedIndex) {
       case 0:
         return DashboardScreen(onNavigate: (index) => setState(() => _selectedIndex = index));
+      case 2:
+        return const MembersScreen();
       default:
         final current = _navItems[_selectedIndex];
         return Center(
@@ -415,3 +418,4 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
     );
   }
 }
+

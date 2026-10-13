@@ -71,8 +71,18 @@ class AuthNotifier extends Notifier<AuthState> {
         },
       );
 
-      final data = response.data;
-      final token = data['token'] as String?;
+      final payload = response.data;
+      Map<String, dynamic> data = {};
+
+      if (payload is Map<String, dynamic>) {
+        if (payload.containsKey('data') && payload['data'] is Map<String, dynamic>) {
+          data = payload['data'] as Map<String, dynamic>;
+        } else {
+          data = payload;
+        }
+      }
+
+      final token = data['token']?.toString();
       final userData = data['user'] as Map<String, dynamic>?;
 
       if (token == null || userData == null) {
