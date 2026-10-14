@@ -1,19 +1,71 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../../../core/services/receipt_printing_service.dart';
+import '../../settings/providers/settings_provider.dart';
+import '../models/product_model.dart';
 
-class CheckoutSuccessDialog extends StatelessWidget {
+class CheckoutSuccessDialog extends ConsumerStatefulWidget {
   final double total;
+  final double subtotal;
+  final double discount;
   final String paymentMethod;
+  final double amountReceived;
   final double change;
   final String customerName;
+  final List<CartItemModel> items;
+  final String? saleId;
 
   const CheckoutSuccessDialog({
     super.key,
     required this.total,
+    this.subtotal = 0.0,
+    this.discount = 0.0,
     required this.paymentMethod,
+    this.amountReceived = 0.0,
     required this.change,
     required this.customerName,
+    this.items = const [],
+    this.saleId,
   });
+
+  @override
+  ConsumerState<CheckoutSuccessDialog> createState() => _CheckoutSuccessDialogState();
+}
+
+class _CheckoutSuccessDialogState extends ConsumerState<CheckoutSuccessDialog> {
+  bool _isPrinting = false;
+
+  Future<void> _handlePrint() async {
+    setState(() => _isPrinting = true);
+    final gymSettings = ref.read(gymSettingsProvider).settings;
+
+    try {
+      await ReceiptPrintingService.printSaleReceipt(
+        items: widget.items,
+        total: widget.total,
+        subtotal: widget.subtotal > 0 ? widget.subtotal : widget.total + widget.discount,
+        discount: widget.discount,
+        paymentMethod: widget.paymentMethod,
+        amountReceived: widget.amountReceived,
+        change: widget.change,
+        customerName: widget.customerName,
+        saleId: widget.saleId,
+        gymSettings: gymSettings,
+      );
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al abrir diálogo de impresión: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isPrinting = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +95,7 @@ class CheckoutSuccessDialog extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              'Cliente: $customerName',
+              'Cliente: ${widget.customerName}',
               style: const TextStyle(fontSize: 13, color: Colors.white70),
             ),
             const Divider(height: 32),
@@ -53,30 +105,43 @@ class CheckoutSuccessDialog extends StatelessWidget {
               children: [
                 const Text('Total Cobrado:', style: TextStyle(fontSize: 14, color: Colors.white70)),
                 Text(
-                  currency.format(total),
+                  currency.format(widget.total),
                   style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.greenAccent),
                 ),
               ],
             ),
+            if (widget.discount > 0) ...[
+              const SizedBox(height: 6),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Descuento aplicado:', style: TextStyle(fontSize: 12, color: Colors.amberAccent)),
+                  Text(
+                    '- ${currency.format(widget.discount)}',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amberAccent),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text('Método de Pago:', style: TextStyle(fontSize: 13, color: Colors.white54)),
                 Text(
-                  _translateMethod(paymentMethod),
+                  _translateMethod(widget.paymentMethod),
                   style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white),
                 ),
               ],
             ),
-            if (change > 0) ...[
+            if (widget.change > 0) ...[
               const SizedBox(height: 8),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text('Cambio a Devolver:', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.amber)),
                   Text(
-                    currency.format(change),
+                    currency.format(widget.change),
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.amber),
                   ),
                 ],
@@ -89,20 +154,23 @@ class CheckoutSuccessDialog extends StatelessWidget {
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    icon: const Icon(Icons.print, size: 16),
-                    label: const Text('Imprimir Ticket'),
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Enviando ticket a impresora POS...')),
-                      );
-                      Navigator.of(context).pop();
-                    },
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    icon: _isPrinting
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.print, size: 18),
+                    label: Text(_isPrinting ? 'Abriendo...' : 'Imprimir Ticket'),
+                    onPressed: _isPrinting ? null : _handlePrint,
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton.icon(
-                    icon: const Icon(Icons.add_shopping_cart, size: 16),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    icon: const Icon(Icons.add_shopping_cart, size: 18),
                     label: const Text('Nueva Venta'),
                     onPressed: () => Navigator.of(context).pop(),
                   ),

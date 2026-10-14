@@ -1,6 +1,7 @@
-﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../models/cash_register_model.dart';
+import '../models/sale_history_model.dart';
 import '../services/cash_register_service.dart';
 
 final cashRegisterServiceProvider = Provider<CashRegisterService>((ref) {
@@ -14,6 +15,7 @@ class CashRegisterState {
   final CashRegisterModel? currentRegister;
   final List<CashRegisterModel> history;
   final List<CashTransactionModel> currentTransactions;
+  final List<SaleHistoryModel> sales;
   final String? error;
 
   const CashRegisterState({
@@ -22,11 +24,18 @@ class CashRegisterState {
     this.currentRegister,
     this.history = const [],
     this.currentTransactions = const [],
+    this.sales = const [],
     this.error,
   });
 
   bool get isRegisterOpen => currentRegister != null && currentRegister!.isOpen;
   double get totalWithdrawals => currentTransactions.where((t) => t.isOut).fold(0.0, (sum, t) => sum + t.amount);
+  double get totalSalesAmount => isRegisterOpen
+      ? sales.where((s) => s.status != 'cancelled').fold(0.0, (sum, s) => sum + s.totalAmount)
+      : 0.0;
+  int get completedSalesCount => isRegisterOpen
+      ? sales.where((s) => s.status != 'cancelled').length
+      : 0;
 
   CashRegisterState copyWith({
     bool? isLoading,
@@ -35,6 +44,7 @@ class CashRegisterState {
     bool clearCurrent = false,
     List<CashRegisterModel>? history,
     List<CashTransactionModel>? currentTransactions,
+    List<SaleHistoryModel>? sales,
     String? error,
   }) {
     return CashRegisterState(
@@ -43,6 +53,7 @@ class CashRegisterState {
       currentRegister: clearCurrent ? null : (currentRegister ?? this.currentRegister),
       history: history ?? this.history,
       currentTransactions: currentTransactions ?? this.currentTransactions,
+      sales: sales ?? this.sales,
       error: error,
     );
   }
@@ -67,8 +78,17 @@ class CashRegisterNotifier extends Notifier<CashRegisterState> {
 
       final reg = futures[0] as CashRegisterModel?;
       List<CashTransactionModel> txs = [];
+      List<SaleHistoryModel> salesList = [];
+
       if (reg != null && reg.isOpen) {
-        txs = await service.getCashTransactions(reg.id);
+        final regData = await Future.wait([
+          service.getCashTransactions(reg.id),
+          service.getSales(cashRegisterId: reg.id),
+        ]);
+        txs = regData[0] as List<CashTransactionModel>;
+        salesList = regData[1] as List<SaleHistoryModel>;
+      } else {
+        salesList = [];
       }
 
       state = state.copyWith(
@@ -76,10 +96,19 @@ class CashRegisterNotifier extends Notifier<CashRegisterState> {
         currentRegister: reg,
         history: futures[1] as List<CashRegisterModel>,
         currentTransactions: txs,
+        sales: salesList,
       );
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
+  }
+
+  Future<void> loadAllSales() async {
+    final service = ref.read(cashRegisterServiceProvider);
+    try {
+      final allSales = await service.getSales(limit: 100);
+      state = state.copyWith(sales: allSales);
+    } catch (_) {}
   }
 
   Future<bool> openRegister(double openingAmount) async {
@@ -133,6 +162,20 @@ class CashRegisterNotifier extends Notifier<CashRegisterState> {
         history: updatedHistory,
         currentTransactions: [],
       );
+      return true;
+    } catch (e) {
+      state = state.copyWith(isProcessing: false, error: e.toString());
+      return false;
+    }
+  }
+
+  Future<bool> cancelSale(String saleId, {String? reason}) async {
+    state = state.copyWith(isProcessing: true, error: null);
+    final service = ref.read(cashRegisterServiceProvider);
+
+    try {
+      await service.cancelSale(saleId, reason: reason);
+      await loadInitialData();
       return true;
     } catch (e) {
       state = state.copyWith(isProcessing: false, error: e.toString());

@@ -1,7 +1,8 @@
-﻿import 'package:dio/dio.dart';
+import 'package:dio/dio.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/network/api_client.dart';
 import '../models/cash_register_model.dart';
+import '../models/sale_history_model.dart';
 
 class CashRegisterService {
   final ApiClient _apiClient;
@@ -139,6 +140,50 @@ class CashRegisterService {
       );
     } on DioException catch (e) {
       throw Exception(e.response?.data?['message'] ?? 'Error registrando salida de efectivo');
+    }
+  }
+
+  Future<List<SaleHistoryModel>> getSales({String? cashRegisterId, int limit = 50}) async {
+    try {
+      final response = await _apiClient.dio.get(
+        ApiConstants.sales,
+        queryParameters: {
+          'limit': limit,
+          if (cashRegisterId != null && cashRegisterId.isNotEmpty) 'cashRegisterId': cashRegisterId,
+        },
+      );
+
+      final payload = response.data;
+      List<dynamic> list = [];
+
+      if (payload is Map && payload.containsKey('data')) {
+        final inner = payload['data'];
+        if (inner is Map && inner['sales'] is List) {
+          list = inner['sales'] as List;
+        } else if (inner is List) {
+          list = inner;
+        }
+      } else if (payload is Map && payload['sales'] is List) {
+        list = payload['sales'] as List;
+      } else if (payload is List) {
+        list = payload;
+      }
+
+      return list.map((e) => SaleHistoryModel.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> cancelSale(String saleId, {String? reason}) async {
+    try {
+      await _apiClient.dio.delete(
+        '${ApiConstants.sales}/$saleId',
+        data: reason != null && reason.trim().isNotEmpty ? {'reason': reason.trim()} : null,
+        queryParameters: reason != null && reason.trim().isNotEmpty ? {'reason': reason.trim()} : null,
+      );
+    } on DioException catch (e) {
+      throw Exception(e.response?.data?['message'] ?? 'Error al anular la venta');
     }
   }
 }

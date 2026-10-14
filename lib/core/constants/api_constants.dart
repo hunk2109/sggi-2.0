@@ -24,4 +24,8 @@ class ApiConstants {
   static const String gymSettings = '/gym-settings';
   static const String whatsappSettings = '/whatsapp-settings';
   static const String emailSettings = '/email-settings';
+  static const String campaigns = '/campaigns';
+  static const String promotions = '/promotions';
+  static const String activePromotions = '/promotions/active';
+  static const String validatePromotion = '/promotions/validate';
 }

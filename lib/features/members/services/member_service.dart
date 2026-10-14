@@ -204,4 +204,19 @@ class MemberService {
       return false;
     }
   }
+
+  Future<Map<String, dynamic>> removeMembership(String memberId, {String? action}) async {
+    try {
+      final response = await _apiClient.dio.delete(
+        '${ApiConstants.memberMemberships}/$memberId',
+        queryParameters: action != null ? {'action': action} : null,
+      );
+      if (response.data is Map) {
+        return Map<String, dynamic>.from(response.data as Map);
+      }
+      return {'success': true, 'message': 'Membresía cancelada correctamente'};
+    } on DioException catch (e) {
+      throw Exception(e.response?.data?['message'] ?? 'Error cancelando membresía');
+    }
+  }
 }

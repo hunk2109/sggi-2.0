@@ -185,6 +185,7 @@ class MembersNotifier extends Notifier<MembersState> {
     required String startDate,
     String? endDate,
     String paymentMethod = 'cash',
+    String? promotionCode,
   }) async {
     final service = ref.read(membershipServiceProvider);
     try {
@@ -194,6 +195,7 @@ class MembersNotifier extends Notifier<MembersState> {
         startDate: startDate,
         endDate: endDate,
         paymentMethod: paymentMethod,
+        promotionCode: promotionCode,
       );
       await loadMembers(page: state.currentPage);
       return res;

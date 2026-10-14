@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../../../../core/services/receipt_printing_service.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../settings/providers/settings_provider.dart';
 import '../models/member_model.dart';
 import '../providers/members_provider.dart';
 import 'assign_membership_dialog.dart';
@@ -76,7 +78,8 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
       builder: (_) => AssignMembershipDialog(member: _currentMember),
     );
     if (result == true) {
-      _loadAllHistory();
+      await _loadAllHistory();
+      ref.read(membersProvider.notifier).loadMembers();
     }
   }
 
@@ -324,7 +327,7 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
                         overflow: TextOverflow.ellipsis,
                       ),
                       Text(
-                        _currentMember.membershipEndDate != null
+                        (_currentMember.membershipEndDate != null && _currentMember.membershipEndDate!.year > 2020)
                             ? 'Vence: ${_dateFormat.format(_currentMember.membershipEndDate!)}'
                             : 'No asignado',
                         style: TextStyle(
@@ -455,9 +458,11 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
     return Padding(
       padding: const EdgeInsets.only(top: 12),
       child: SingleChildScrollView(
-        child: SizedBox(
-          width: double.infinity,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
           child: DataTable(
+            columnSpacing: 18,
+            horizontalMargin: 12,
             headingRowHeight: 40,
             dataRowMinHeight: 46,
             dataRowMaxHeight: 46,
@@ -469,6 +474,7 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
               DataColumn(label: Text('Pagado', style: TextStyle(fontWeight: FontWeight.bold))),
               DataColumn(label: Text('Estado Pago', style: TextStyle(fontWeight: FontWeight.bold))),
               DataColumn(label: Text('Estado', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('Acción', style: TextStyle(fontWeight: FontWeight.bold))),
             ],
             rows: _membershipsHistory.map((m) {
               final planMap = m['membership'] as Map?;
@@ -480,13 +486,14 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
               final price = double.tryParse(planMap?['price']?.toString() ?? m['price']?.toString() ?? '') ?? 0.0;
               final paid = double.tryParse(m['amountPaid']?.toString() ?? '') ?? 0.0;
               final pStatus = m['paymentStatus']?.toString() ?? (m['isPaid'] == true ? 'PAID' : 'PENDING');
-              final isActive = m['isActive'] == true || (endDt != null && endDt.isAfter(DateTime.now()));
+              final isEndValid = endDt != null && endDt.year > 2020;
+              final isActive = m['isActive'] == true || (isEndValid && endDt.isAfter(DateTime.now()));
 
               return DataRow(
                 cells: [
                   DataCell(Text(planName, style: const TextStyle(fontWeight: FontWeight.w600))),
-                  DataCell(Text(startDt != null ? _dateFormat.format(startDt) : '-')),
-                  DataCell(Text(endDt != null ? _dateFormat.format(endDt) : '-')),
+                  DataCell(Text((startDt != null && startDt.year > 2020) ? _dateFormat.format(startDt) : '-')),
+                  DataCell(Text(isEndValid ? _dateFormat.format(endDt) : 'Expirada')),
                   DataCell(Text(_currencyFormat.format(price))),
                   DataCell(Text(_currencyFormat.format(paid), style: const TextStyle(color: Colors.greenAccent))),
                   DataCell(_buildPaymentStatusBadge(pStatus)),
@@ -506,6 +513,21 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
                         ),
                       ),
                     ),
+                  ),
+                  DataCell(
+                    isActive
+                        ? ElevatedButton.icon(
+                            icon: const Icon(Icons.cancel_outlined, size: 14),
+                            label: const Text('Cancelar', style: TextStyle(fontSize: 11)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.redAccent.shade700,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              minimumSize: const Size(0, 28),
+                            ),
+                            onPressed: () => _openCancelMembershipDialog(m),
+                          )
+                        : const Text('-', style: TextStyle(color: Colors.white38)),
                   ),
                 ],
               );
@@ -579,7 +601,17 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
                             ),
                             onPressed: () => _openPayDialog(paymentId, amount),
                           )
-                        : const Text('-', style: TextStyle(color: Colors.white38)),
+                        : OutlinedButton.icon(
+                            icon: const Icon(Icons.print_outlined, size: 14),
+                            label: const Text('Recibo', style: TextStyle(fontSize: 11)),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.white,
+                              side: const BorderSide(color: Colors.white24),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              minimumSize: const Size(0, 28),
+                            ),
+                            onPressed: () => _printPaymentReceipt(p),
+                          ),
                   ),
                 ],
               );
@@ -588,6 +620,63 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
         ),
       ),
     );
+  }
+
+  Future<void> _printPaymentReceipt(Map<String, dynamic> payment) async {
+    final paymentId = payment['id']?.toString() ?? '';
+    final amount = double.tryParse(payment['amount']?.toString() ?? '') ?? 0.0;
+    final method = payment['paymentMethod']?.toString() ?? 'Efectivo';
+    final refCode = payment['receiptNumber']?.toString() ??
+        payment['reference']?.toString() ??
+        (paymentId.length > 8 ? paymentId.substring(0, 8) : paymentId);
+
+    // Buscar membresía vinculada en el historial
+    Map<String, dynamic>? matchedMm;
+    for (final mm in _membershipsHistory) {
+      if (mm['paymentId'] == paymentId || mm['payment']?['id'] == paymentId) {
+        matchedMm = mm;
+        break;
+      }
+    }
+    matchedMm ??= _membershipsHistory.isNotEmpty ? _membershipsHistory.first : null;
+
+    final planName = matchedMm?['membership']?['name']?.toString() ?? _currentMember.activePlanName ?? 'Membresía General';
+    final rawStart = matchedMm?['startDate']?.toString();
+    final rawEnd = matchedMm?['endDate']?.toString();
+    final startDate = rawStart != null ? DateTime.tryParse(rawStart) : null;
+    final endDate = rawEnd != null ? DateTime.tryParse(rawEnd) : _currentMember.membershipEndDate;
+
+    final promoCode = matchedMm?['appliedPromotionCode']?.toString();
+    final discountPercent = matchedMm?['discountPercentage'] != null
+        ? num.tryParse(matchedMm!['discountPercentage'].toString())
+        : null;
+    final rawPrice = matchedMm?['membership']?['price'];
+    final originalPrice = rawPrice != null ? double.tryParse(rawPrice.toString()) : null;
+
+    final gymSettings = ref.read(gymSettingsProvider).settings;
+
+    try {
+      await ReceiptPrintingService.printMembershipReceipt(
+        memberName: _currentMember.fullName,
+        displayCode: _currentMember.displayCode,
+        planName: planName,
+        amountPaid: amount,
+        paymentMethod: method,
+        startDate: startDate,
+        endDate: endDate,
+        receiptNumber: refCode,
+        promotionCode: promoCode,
+        discountPercentage: discountPercent,
+        originalPlanPrice: originalPrice,
+        gymSettings: gymSettings,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al abrir diálogo de impresión de Windows: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _openPayDialog(String paymentId, double amount) async {
@@ -640,8 +729,19 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
       if (ok) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Pago de ${_currencyFormat.format(amount)} registrado y cargado a caja'),
+            content: Text('Pago de ${_currencyFormat.format(amount)} registrado exitosamente.'),
             backgroundColor: AppTheme.success,
+            duration: const Duration(seconds: 7),
+            action: SnackBarAction(
+              label: 'IMPRIMIR RECIBO',
+              textColor: Colors.amberAccent,
+              onPressed: () => _printPaymentReceipt({
+                'id': paymentId,
+                'amount': amount,
+                'paymentMethod': selectedMethod,
+                'paymentDate': DateTime.now().toIso8601String(),
+              }),
+            ),
           ),
         );
         _loadAllHistory();
@@ -651,6 +751,210 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
         );
       }
     }
+  }
+
+  Future<void> _openCancelMembershipDialog(Map<String, dynamic> m) async {
+    final planMap = m['membership'] as Map?;
+    final planName = planMap?['name']?.toString() ?? 'Plan';
+    final price = double.tryParse(planMap?['price']?.toString() ?? m['price']?.toString() ?? '') ?? 0.0;
+    final paid = double.tryParse(m['amountPaid']?.toString() ?? '') ?? 0.0;
+    final pStatus = m['paymentStatus']?.toString() ?? (m['isPaid'] == true ? 'PAID' : 'PENDING');
+    final isPending = pStatus.toUpperCase().contains('PEND');
+    final effectivePaid = paid > 0 ? paid : price;
+
+    String selectedAction = 'credit_balance'; // 'credit_balance', 'refund', 'revoke_only'
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF1E232B),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          title: Row(
+            children: [
+              Icon(
+                isPending ? Icons.warning_amber_rounded : Icons.remove_circle_outline,
+                color: isPending ? Colors.orangeAccent : Colors.redAccent,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                isPending ? 'Cancelar Plan Pendiente' : 'Cancelar Plan Pagado',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 480,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Plan: $planName - ${_currencyFormat.format(price)}',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
+                ),
+                const SizedBox(height: 12),
+                if (isPending) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange.withValues(alpha: 0.25)),
+                    ),
+                    child: const Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Esta membresía tiene un cobro pendiente en el sistema.',
+                          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Colors.orangeAccent),
+                        ),
+                        SizedBox(height: 6),
+                        Text(
+                          '• La factura pendiente se marcará como CANCELADA (se anula la deuda).\n• El acceso biométrico y la membresía serán removidos de inmediato.',
+                          style: TextStyle(fontSize: 12, color: Colors.white70),
+                        ),
+                      ],
+                    ),
+                  ),
+                ] else ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.only(bottom: 14),
+                    decoration: BoxDecoration(
+                      color: Colors.blueAccent.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.25)),
+                    ),
+                    child: Text(
+                      'Esta membresía ya fue pagada (${_currencyFormat.format(effectivePaid)}). Selecciona cómo deseas gestionar el pago:',
+                      style: const TextStyle(fontSize: 12, color: Colors.white),
+                    ),
+                  ),
+                  _buildRefundOption(
+                    title: 'Saldo a Favor del Socio (Recomendado)',
+                    subtitle: 'Acredita ${_currencyFormat.format(effectivePaid)} al monedero del socio para futuras mensualidades o productos.',
+                    value: 'credit_balance',
+                    groupValue: selectedAction,
+                    onChanged: (val) => setDialogState(() => selectedAction = val!),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildRefundOption(
+                    title: 'Reembolso / Devolución',
+                    subtitle: 'Marca el pago como REEMBOLSADO para registrar la devolución del dinero al cliente.',
+                    value: 'refund',
+                    groupValue: selectedAction,
+                    onChanged: (val) => setDialogState(() => selectedAction = val!),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildRefundOption(
+                    title: 'Solo revocar acceso (Sin reembolso)',
+                    subtitle: 'Cancela la membresía y bloquea el acceso sin devolver ni acreditar el importe pagado.',
+                    value: 'revoke_only',
+                    groupValue: selectedAction,
+                    onChanged: (val) => setDialogState(() => selectedAction = val!),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Volver'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent.shade700,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(isPending ? 'Anular Deuda y Cancelar' : 'Confirmar Cancelación'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed == true) {
+      final s = ref.read(memberServiceProvider);
+      try {
+        final res = await s.removeMembership(
+          _currentMember.id,
+          action: isPending ? null : selectedAction,
+        );
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(res['message']?.toString() ?? 'Membresía cancelada exitosamente'),
+            backgroundColor: AppTheme.success,
+          ),
+        );
+        _loadAllHistory();
+        ref.read(membersProvider.notifier).loadMembers();
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.error),
+        );
+      }
+    }
+  }
+
+  Widget _buildRefundOption({
+    required String title,
+    required String subtitle,
+    required String value,
+    required String groupValue,
+    required ValueChanged<String?> onChanged,
+  }) {
+    final isSelected = value == groupValue;
+    return InkWell(
+      onTap: () => onChanged(value),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected ? AppTheme.primary.withValues(alpha: 0.12) : const Color(0xFF252A34),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? AppTheme.primary : Colors.white12,
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+              size: 20,
+              color: isSelected ? AppTheme.primary : Colors.white38,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: isSelected ? Colors.white : Colors.white70,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(fontSize: 11, color: Colors.white54),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   // TAB 3: Asistencias

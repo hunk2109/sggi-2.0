@@ -1,4 +1,4 @@
-﻿import 'package:dio/dio.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/models/user_model.dart';
@@ -129,6 +129,142 @@ class AuthNotifier extends Notifier<AuthState> {
     } catch (_) {}
     await storage.clearSession();
     state = const AuthState();
+  }
+
+  Future<Map<String, dynamic>> updateProfile({
+    String? firstName,
+    String? lastName,
+    String? phone,
+    String? email,
+  }) async {
+    final apiClient = ref.read(apiClientProvider);
+    final storage = ref.read(storageServiceProvider);
+
+    try {
+      final data = <String, dynamic>{};
+      if (firstName != null && firstName.trim().isNotEmpty) {
+        data['firstName'] = firstName.trim();
+      }
+      if (lastName != null && lastName.trim().isNotEmpty) {
+        data['lastName'] = lastName.trim();
+      }
+      if (phone != null) {
+        data['phone'] = phone.trim();
+      }
+      if (email != null && email.trim().isNotEmpty) {
+        data['email'] = email.trim();
+      }
+
+      final response = await apiClient.dio.put(
+        ApiConstants.profile,
+        data: data,
+      );
+
+      final payload = response.data;
+      Map<String, dynamic> resData = {};
+      if (payload is Map<String, dynamic>) {
+        if (payload.containsKey('data') && payload['data'] is Map<String, dynamic>) {
+          resData = payload['data'] as Map<String, dynamic>;
+        } else {
+          resData = payload;
+        }
+      }
+
+      if (resData.containsKey('token') && resData['token'] != null) {
+        await storage.saveToken(resData['token'].toString());
+      }
+
+      if (resData.containsKey('user') && resData['user'] is Map<String, dynamic>) {
+        final updatedUser = UserModel.fromJson(resData['user'] as Map<String, dynamic>);
+        await storage.saveUser(updatedUser);
+        state = state.copyWith(user: updatedUser);
+      } else {
+        final currentUser = state.user;
+        if (currentUser != null) {
+          final updatedUser = UserModel(
+            id: currentUser.id,
+            email: data['email'] ?? currentUser.email,
+            firstName: data['firstName'] ?? currentUser.firstName,
+            lastName: data['lastName'] ?? currentUser.lastName,
+            phone: data.containsKey('phone') ? data['phone'] : currentUser.phone,
+            role: currentUser.role,
+            isActive: currentUser.isActive,
+          );
+          await storage.saveUser(updatedUser);
+          state = state.copyWith(user: updatedUser);
+        }
+      }
+
+      return {'success': true, 'message': resData['message'] ?? 'Perfil actualizado correctamente'};
+    } on DioException catch (e) {
+      String msg = 'Error al actualizar el perfil';
+      if (e.response?.data is Map && e.response?.data['message'] != null) {
+        msg = e.response?.data['message'].toString() ?? msg;
+      }
+      return {'success': false, 'message': msg};
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> changePassword({
+    required String currentPassword,
+    required String newPassword,
+    required String confirmPassword,
+  }) async {
+    final apiClient = ref.read(apiClientProvider);
+
+    try {
+      final response = await apiClient.dio.post(
+        '/auth/change-password',
+        data: {
+          'currentPassword': currentPassword,
+          'newPassword': newPassword,
+          'confirmPassword': confirmPassword,
+        },
+      );
+
+      final payload = response.data;
+      String message = 'Contraseña actualizada con éxito';
+      if (payload is Map && payload['message'] != null) {
+        message = payload['message'].toString();
+      }
+
+      return {'success': true, 'message': message};
+    } on DioException catch (e) {
+      String msg = 'Error al cambiar la contraseña';
+      if (e.response?.data is Map && e.response?.data['message'] != null) {
+        msg = e.response?.data['message'].toString() ?? msg;
+      }
+      return {'success': false, 'message': msg};
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>?> fetchProfile() async {
+    final apiClient = ref.read(apiClientProvider);
+    final storage = ref.read(storageServiceProvider);
+
+    try {
+      final response = await apiClient.dio.get(ApiConstants.profile);
+      final payload = response.data;
+      Map<String, dynamic> resData = {};
+      if (payload is Map<String, dynamic>) {
+        if (payload.containsKey('data') && payload['data'] is Map<String, dynamic>) {
+          resData = payload['data'] as Map<String, dynamic>;
+        } else {
+          resData = payload;
+        }
+      }
+
+      final updatedUser = UserModel.fromJson(resData);
+      await storage.saveUser(updatedUser);
+      state = state.copyWith(user: updatedUser);
+      return resData;
+    } catch (_) {
+      return null;
+    }
   }
 }
 

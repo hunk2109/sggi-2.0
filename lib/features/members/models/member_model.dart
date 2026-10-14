@@ -97,8 +97,15 @@ class MemberModel {
       }
     }
 
-    if (planName == null && json['membership'] is Map) {
-      planName = (json['membership'] as Map)['name']?.toString();
+    if (planName == null) {
+      if (json['membership'] is Map) {
+        planName = (json['membership'] as Map)['name']?.toString();
+      } else if (json['activePlanName'] != null) {
+        planName = json['activePlanName']?.toString();
+      }
+    }
+    if (endDate == null && json['membershipEndDate'] != null) {
+      endDate = DateTime.tryParse(json['membershipEndDate'].toString());
     }
 
     final bool hasMem = json['hasMembership'] == true ||
@@ -138,10 +145,24 @@ class MemberModel {
       joinDate: parsedJoin,
       isPaid: json['isPaid'] == true || json['isPaid'] == 1,
       hasMembership: hasMem,
-      hasPendingPayment: json['hasPendingPayment'] == true || json['hasPendingPayment'] == 1,
+      hasPendingPayment: json['hasPendingPayment'] == true ||
+          json['hasPendingPayment'] == 1 ||
+          json['hasPendingMembershipPayment'] == true ||
+          json['hasPendingMembershipPayment'] == 1 ||
+          (json['paymentStatus'] != null && json['paymentStatus'].toString().toLowerCase().contains('pend')) ||
+          (activeMem != null && activeMem['paymentStatus'] != null && activeMem['paymentStatus'].toString().toLowerCase().contains('pend')) ||
+          (json['isPaid'] == false && hasMem),
       activePlanName: planName,
       membershipEndDate: endDate,
       isSuspended: json['isMembershipSuspended'] == true || json['isMembershipSuspended'] == 1,
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MemberModel && runtimeType == other.runtimeType && id == other.id;
+
+  @override
+  int get hashCode => id.hashCode;
 }

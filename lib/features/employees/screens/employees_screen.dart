@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../dialogs/employee_form_dialog.dart';
+import '../dialogs/convert_client_dialog.dart';
 import '../models/employee_model.dart';
 import '../models/payroll_model.dart';
 import '../providers/employees_provider.dart';
@@ -82,6 +83,60 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen> with SingleTi
           SnackBar(
             content: Text(success ? 'Empleado procesado' : 'Error al eliminar empleado'),
             backgroundColor: success ? AppTheme.success : AppTheme.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleSendCredentials(EmployeeModel employee) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E232B),
+        title: const Row(
+          children: [
+            Icon(Icons.send_outlined, color: Colors.blueAccent, size: 20),
+            SizedBox(width: 8),
+            Text('Enviar Credenciales', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ],
+        ),
+        content: Text(
+          '¿Desea generar una nueva contraseña temporal y enviar las credenciales de acceso a ${employee.fullName} por Correo Electrónico (${employee.email}) y WhatsApp (${employee.phone})?',
+          style: const TextStyle(fontSize: 13, color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Enviar Credenciales', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Enviando credenciales a ${employee.fullName}...'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+
+      final result = await ref.read(employeesProvider.notifier).sendCredentials(employee.id);
+      if (mounted) {
+        final success = result['success'] == true;
+        final message = result['message']?.toString() ?? (success ? 'Credenciales enviadas' : 'Error al enviar credenciales');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: success ? AppTheme.success : AppTheme.error,
+            duration: const Duration(seconds: 4),
           ),
         );
       }
@@ -319,6 +374,19 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen> with SingleTi
               ),
               const SizedBox(width: 6),
 
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                icon: const Icon(Icons.badge_outlined, size: 18, color: Colors.amberAccent),
+                label: const Text('Convertir Socio a Empleado'),
+                onPressed: () => ConvertClientDialog.show(context),
+              ),
+              const SizedBox(width: 8),
+
               ElevatedButton.icon(
                 icon: const Icon(Icons.person_add, size: 18),
                 label: const Text('Nuevo Empleado'),
@@ -423,6 +491,12 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen> with SingleTi
                                             tooltip: e.isActive ? 'Desactivar Empleado' : 'Activar Empleado',
                                             color: e.isActive ? Colors.greenAccent : Colors.white38,
                                             onPressed: () => notifier.toggleActive(e.id),
+                                          ),
+                                          IconButton(
+                                            icon: const Icon(Icons.send_outlined, size: 18),
+                                            tooltip: 'Reenviar Credenciales (Correo y WhatsApp)',
+                                            color: Colors.blueAccent,
+                                            onPressed: () => _handleSendCredentials(e),
                                           ),
                                           IconButton(
                                             icon: const Icon(Icons.edit_outlined, size: 18),

@@ -1,7 +1,9 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../cash_register/dialogs/open_cash_dialog.dart';
+import '../../cash_register/providers/cash_register_provider.dart';
 import '../../members/models/member_model.dart';
 import '../../members/providers/members_provider.dart';
 import '../dialogs/checkout_success_dialog.dart';
@@ -19,6 +21,39 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   final _searchController = TextEditingController();
   final _receivedController = TextEditingController();
   final _currency = NumberFormat.currency(locale: 'es_DO', symbol: 'RD\$ ', decimalDigits: 2);
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() {
+      ref.read(cashRegisterProvider.notifier).loadInitialData();
+    });
+  }
+
+  Future<void> _openOpenCashDialog() async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const OpenCashDialog(),
+    );
+    if (result == true) {
+      ref.read(cashRegisterProvider.notifier).loadInitialData();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 8),
+                Text('¡Caja abierta exitosamente! Ventas habilitadas.'),
+              ],
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -111,6 +146,31 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   }
 
   Future<void> _handleCheckout() async {
+    final isRegisterOpen = ref.read(cashRegisterProvider).isRegisterOpen;
+    if (!isRegisterOpen) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.lock, color: Colors.white, size: 20),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text('Ventas bloqueadas: Debe abrir un turno de caja para poder facturar.'),
+              ),
+            ],
+          ),
+          backgroundColor: AppTheme.error,
+          action: SnackBarAction(
+            label: 'ABRIR CAJA',
+            textColor: Colors.white,
+            onPressed: _openOpenCashDialog,
+          ),
+        ),
+      );
+      _openOpenCashDialog();
+      return;
+    }
+
     final state = ref.read(posProvider);
     if (state.cart.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -120,9 +180,13 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     }
 
     final total = state.total;
+    final subtotal = state.subtotal;
+    final discount = state.discount;
     final change = state.change;
     final method = state.paymentMethod;
+    final amountReceived = state.amountReceived;
     final customerName = state.selectedMember?.fullName ?? 'Cliente Mostrador';
+    final cartItems = List<CartItemModel>.from(state.cart);
 
     final result = await ref.read(posProvider.notifier).processSale();
 
@@ -134,9 +198,14 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         context: context,
         builder: (_) => CheckoutSuccessDialog(
           total: total,
+          subtotal: subtotal,
+          discount: discount,
           paymentMethod: method,
+          amountReceived: amountReceived,
           change: change,
           customerName: customerName,
+          items: cartItems,
+          saleId: result['id']?.toString() ?? result['saleId']?.toString(),
         ),
       );
     } else {
@@ -153,12 +222,68 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(posProvider);
     final notifier = ref.read(posProvider.notifier);
+    final cashState = ref.watch(cashRegisterProvider);
+    final isRegisterOpen = cashState.isRegisterOpen;
 
     return Padding(
       padding: const EdgeInsets.all(20),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
         children: [
+          if (!isRegisterOpen) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2E1518),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.redAccent.withValues(alpha: 0.5), width: 1.5),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.redAccent.withValues(alpha: 0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.lock_clock, color: Colors.redAccent, size: 24),
+                  ),
+                  const SizedBox(width: 14),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'TURNO DE CAJA CERRADO • VENTAS DESHABILITADAS',
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Debe iniciar un turno de caja registrando el fondo inicial para poder cobrar en el Punto de Venta.',
+                          style: TextStyle(fontSize: 12, color: Colors.white70),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.lock_open, size: 16),
+                    label: const Text('Abrir Turno / Caja'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.success,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                    ),
+                    onPressed: _openOpenCashDialog,
+                  ),
+                ],
+              ),
+            ),
+          ],
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
           // LEFT PANEL: Product Catalog (~62% width)
           Expanded(
             flex: 62,
@@ -247,7 +372,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                               itemCount: state.filteredProducts.length,
                               itemBuilder: (context, index) {
                                 final product = state.filteredProducts[index];
-                                return _buildProductCard(product, notifier);
+                                return _buildProductCard(product, notifier, isRegisterOpen);
                               },
                             ),
                 ),
@@ -500,16 +625,27 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                         child: ElevatedButton.icon(
                           icon: state.isProcessingSale
                               ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                              : const Icon(Icons.check_circle_outline, size: 20),
+                              : Icon(
+                                  isRegisterOpen ? Icons.check_circle_outline : Icons.lock_outline,
+                                  size: 20,
+                                ),
                           label: Text(
-                            state.isProcessingSale ? 'Procesando...' : 'COBRAR ${_currency.format(state.total)}',
+                            state.isProcessingSale
+                                ? 'Procesando...'
+                                : !isRegisterOpen
+                                    ? 'CAJA CERRADA • INICIAR TURNO'
+                                    : 'COBRAR ${_currency.format(state.total)}',
                             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                           ),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.success,
+                            backgroundColor: !isRegisterOpen ? Colors.red.shade900 : AppTheme.success,
                             foregroundColor: Colors.white,
                           ),
-                          onPressed: (state.cart.isEmpty || state.isProcessingSale) ? null : _handleCheckout,
+                          onPressed: !isRegisterOpen
+                              ? _openOpenCashDialog
+                              : (state.cart.isEmpty || state.isProcessingSale)
+                                  ? null
+                                  : _handleCheckout,
                         ),
                       ),
                     ],
@@ -520,10 +656,13 @@ class _PosScreenState extends ConsumerState<PosScreen> {
           ),
         ],
       ),
-    );
+    ),
+  ],
+),
+);
   }
 
-  Widget _buildProductCard(ProductModel product, PosNotifier notifier) {
+  Widget _buildProductCard(ProductModel product, PosNotifier notifier, bool isRegisterOpen) {
     final hasStock = product.inStock;
 
     return Material(
@@ -531,7 +670,27 @@ class _PosScreenState extends ConsumerState<PosScreen> {
       borderRadius: BorderRadius.circular(10),
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
-        onTap: hasStock ? () => notifier.addToCart(product) : null,
+        onTap: !isRegisterOpen
+            ? () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Row(
+                      children: [
+                        Icon(Icons.lock, color: Colors.white, size: 18),
+                        SizedBox(width: 8),
+                        Expanded(child: Text('Caja cerrada: Debe abrir la caja para poder vender.')),
+                      ],
+                    ),
+                    backgroundColor: AppTheme.error,
+                    action: SnackBarAction(
+                      label: 'ABRIR CAJA',
+                      textColor: Colors.white,
+                      onPressed: _openOpenCashDialog,
+                    ),
+                  ),
+                );
+              }
+            : (hasStock ? () => notifier.addToCart(product) : null),
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(

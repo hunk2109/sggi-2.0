@@ -49,6 +49,7 @@ class MembershipService {
     required String startDate,
     String? endDate,
     String paymentMethod = 'cash',
+    String? promotionCode,
   }) async {
     try {
       final data = <String, dynamic>{
@@ -59,6 +60,9 @@ class MembershipService {
       };
       if (endDate != null && endDate.isNotEmpty) {
         data['endDate'] = endDate;
+      }
+      if (promotionCode != null && promotionCode.trim().isNotEmpty) {
+        data['promotionCode'] = promotionCode.trim().toUpperCase();
       }
       final response = await _apiClient.dio.post(
         ApiConstants.memberMemberships,

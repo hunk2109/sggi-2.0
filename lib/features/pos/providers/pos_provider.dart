@@ -1,4 +1,4 @@
-﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../members/models/member_model.dart';
 import '../models/product_model.dart';
@@ -191,7 +191,9 @@ class PosNotifier extends Notifier<PosState> {
       }).toList();
 
       final result = await service.createSale(
-        memberId: state.selectedMember?.id,
+        memberId: (state.selectedMember?.userId != null && state.selectedMember!.userId!.isNotEmpty)
+            ? state.selectedMember!.userId
+            : state.selectedMember?.id,
         customerName: state.selectedMember?.fullName ?? 'Cliente Mostrador',
         items: items,
         discount: state.discount,

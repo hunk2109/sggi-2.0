@@ -20,6 +20,7 @@ class GymSettingsModel {
   final bool mb360Enabled;
   final String? mb360Ip;
   final int? mb360Port;
+  final String ticketPaperSize; // '80mm', '70mm', '58mm', 'a4'
 
   GymSettingsModel({
     this.id,
@@ -43,6 +44,7 @@ class GymSettingsModel {
     this.mb360Enabled = false,
     this.mb360Ip,
     this.mb360Port,
+    this.ticketPaperSize = '80mm',
   });
 
   factory GymSettingsModel.fromJson(Map<String, dynamic> json) {
@@ -74,6 +76,7 @@ class GymSettingsModel {
       mb360Port: (json['mb360Port'] is num)
           ? (json['mb360Port'] as num).toInt()
           : int.tryParse(json['mb360Port']?.toString() ?? ''),
+      ticketPaperSize: json['ticketPaperSize']?.toString() ?? '80mm',
     );
   }
 
@@ -99,6 +102,7 @@ class GymSettingsModel {
       'mb360Enabled': mb360Enabled,
       if (mb360Ip != null) 'mb360Ip': mb360Ip,
       if (mb360Port != null) 'mb360Port': mb360Port,
+      'ticketPaperSize': ticketPaperSize,
     };
   }
 
@@ -124,6 +128,7 @@ class GymSettingsModel {
     bool? mb360Enabled,
     String? mb360Ip,
     int? mb360Port,
+    String? ticketPaperSize,
   }) {
     return GymSettingsModel(
       id: id ?? this.id,
@@ -147,6 +152,7 @@ class GymSettingsModel {
       mb360Enabled: mb360Enabled ?? this.mb360Enabled,
       mb360Ip: mb360Ip ?? this.mb360Ip,
       mb360Port: mb360Port ?? this.mb360Port,
+      ticketPaperSize: ticketPaperSize ?? this.ticketPaperSize,
     );
   }
 }

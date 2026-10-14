@@ -14,6 +14,8 @@ import '../../cash_register/screens/cash_register_screen.dart';
 import '../../inventory/screens/inventory_screen.dart';
 import '../../employees/screens/employees_screen.dart';
 import '../../settings/screens/settings_screen.dart';
+import '../../campaigns/screens/campaigns_screen.dart';
+import '../../auth/dialogs/user_profile_dialog.dart';
 
 class MainShellScreen extends ConsumerStatefulWidget {
   const MainShellScreen({super.key});
@@ -36,8 +38,9 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
     (title: 'Caja & Arqueo', icon: Icons.account_balance_wallet_outlined, shortcut: 'F4'),
     (title: 'Inventario & Productos', icon: Icons.inventory_2_outlined, shortcut: 'F5'),
     (title: 'Nómina & Empleados', icon: Icons.badge_outlined, shortcut: 'F6'),
-    (title: 'Reportes & Métricas', icon: Icons.bar_chart_outlined, shortcut: 'F7'),
-    (title: 'Configuración', icon: Icons.settings_outlined, shortcut: 'F8'),
+    (title: 'Envíos Masivos', icon: Icons.campaign_outlined, shortcut: 'F7'),
+    (title: 'Reportes & Métricas', icon: Icons.bar_chart_outlined, shortcut: 'F8'),
+    (title: 'Configuración', icon: Icons.settings_outlined, shortcut: 'F9'),
   ];
 
   @override
@@ -86,6 +89,8 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
         setState(() => _selectedIndex = 7);
       } else if (event.logicalKey == LogicalKeyboardKey.f8) {
         setState(() => _selectedIndex = 8);
+      } else if (event.logicalKey == LogicalKeyboardKey.f9) {
+        setState(() => _selectedIndex = 9);
       }
     }
   }
@@ -217,6 +222,7 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
 
   Widget _buildSidebar(BuildContext context) {
     final width = _isSidebarCollapsed ? 68.0 : 230.0;
+    final user = ref.watch(authProvider).user;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
@@ -327,6 +333,64 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
             ),
           ),
 
+          // User Profile Tile
+          const Divider(height: 1, color: Color(0xFF2A303C)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () => UserProfileDialog.show(context),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.03),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 14,
+                      backgroundColor: AppTheme.primary.withValues(alpha: 0.25),
+                      child: Text(
+                        user != null && user.firstName.isNotEmpty
+                            ? user.firstName[0].toUpperCase()
+                            : 'U',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.primary,
+                        ),
+                      ),
+                    ),
+                    if (!_isSidebarCollapsed) ...[
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              user?.fullName ?? 'Mi Perfil',
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              user?.role.label ?? 'Editar perfil',
+                              style: const TextStyle(fontSize: 10, color: Colors.white54),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.settings_outlined, size: 16, color: Colors.white38),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+
           // Logout Button
           const Divider(height: 1, color: Color(0xFF2A303C)),
           Padding(
@@ -372,7 +436,9 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
         return const InventoryScreen();
       case 6:
         return const EmployeesScreen();
-      case 8:
+      case 7:
+        return const CampaignsScreen();
+      case 9:
         return const SettingsScreen();
       default:
         final current = _navItems[_selectedIndex];
@@ -439,9 +505,23 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
           Row(
             children: [
               if (user != null) ...[
-                Text(
-                  'Usuario: ${user.fullName} (${user.role.label})',
-                  style: const TextStyle(fontSize: 11, color: Colors.white70),
+                InkWell(
+                  onTap: () => UserProfileDialog.show(context),
+                  borderRadius: BorderRadius.circular(4),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.account_circle_outlined, size: 14, color: AppTheme.primaryLight),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Usuario: ${user.fullName} (${user.role.label})',
+                          style: const TextStyle(fontSize: 11, color: Colors.white70),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 16),
               ],

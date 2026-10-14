@@ -1,4 +1,4 @@
-﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../models/employee_model.dart';
 import '../models/payroll_model.dart';
@@ -180,6 +180,42 @@ class EmployeesNotifier extends Notifier<EmployeesState> {
       await service.toggleActive(id);
       await loadEmployees();
     } catch (_) {}
+  }
+
+  Future<Map<String, dynamic>> sendCredentials(String id) async {
+    final service = ref.read(employeeServiceProvider);
+    try {
+      return await service.sendCredentials(id);
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> convertClientToEmployee({
+    String? memberId,
+    String? userId,
+    String? email,
+    required String role,
+    double? salary,
+    String? specialization,
+    String? hireDate,
+  }) async {
+    final service = ref.read(employeeServiceProvider);
+    try {
+      final res = await service.convertClientToEmployee(
+        memberId: memberId,
+        userId: userId,
+        email: email,
+        role: role,
+        salary: salary,
+        specialization: specialization,
+        hireDate: hireDate,
+      );
+      await loadEmployees();
+      return res;
+    } catch (e) {
+      return {'success': false, 'message': e.toString().replaceAll('Exception: ', '')};
+    }
   }
 
   Future<bool> deleteEmployee(String id) async {

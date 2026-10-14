@@ -1,4 +1,4 @@
-﻿import 'package:dio/dio.dart';
+import 'package:dio/dio.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/network/api_client.dart';
 import '../models/employee_model.dart';
@@ -74,6 +74,50 @@ class EmployeeService {
 
   Future<void> toggleActive(String id) async {
     await _apiClient.dio.put('${ApiConstants.employees}/$id/toggle-active');
+  }
+
+  Future<Map<String, dynamic>> sendCredentials(String id) async {
+    try {
+      final response = await _apiClient.dio.post('${ApiConstants.employees}/$id/send-credentials');
+      if (response.data is Map<String, dynamic>) {
+        return response.data as Map<String, dynamic>;
+      }
+      return {'success': true, 'message': 'Credenciales procesadas'};
+    } on DioException catch (e) {
+      throw Exception(e.response?.data?['message'] ?? 'Error enviando credenciales');
+    }
+  }
+
+  Future<Map<String, dynamic>> convertClientToEmployee({
+    String? memberId,
+    String? userId,
+    String? email,
+    required String role,
+    double? salary,
+    String? specialization,
+    String? hireDate,
+  }) async {
+    try {
+      final response = await _apiClient.dio.post(
+        '${ApiConstants.employees}/convert-client',
+        data: {
+          if (memberId != null) 'memberId': memberId,
+          if (userId != null) 'userId': userId,
+          if (email != null) 'email': email,
+          'role': role,
+          if (salary != null) 'salary': salary,
+          if (specialization != null) 'specialization': specialization,
+          if (hireDate != null) 'hireDate': hireDate,
+        },
+      );
+      final payload = response.data;
+      if (payload is Map<String, dynamic>) {
+        return payload;
+      }
+      return {'success': true, 'message': 'Cliente convertido a empleado exitosamente'};
+    } on DioException catch (e) {
+      throw Exception(e.response?.data?['message'] ?? 'Error convirtiendo cliente a empleado');
+    }
   }
 
   Future<void> deleteEmployee(String id) async {

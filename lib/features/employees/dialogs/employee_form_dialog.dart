@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../models/employee_model.dart';
 import '../providers/employees_provider.dart';
+import 'convert_client_dialog.dart';
 
 class EmployeeFormDialog extends ConsumerStatefulWidget {
   final EmployeeModel? employeeToEdit;
@@ -140,6 +141,45 @@ class _EmployeeFormDialogState extends ConsumerState<EmployeeFormDialog> {
                 ],
               ),
               const Divider(height: 24),
+
+              if (!_isEditing) ...[
+                Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.amber.withValues(alpha: 0.25)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.info_outline, color: Colors.amberAccent, size: 20),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Text(
+                          '¿La persona ya está registrada como cliente/socio en el gimnasio?',
+                          style: TextStyle(fontSize: 12, color: Colors.white70),
+                        ),
+                      ),
+                      TextButton.icon(
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.amberAccent,
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        ),
+                        icon: const Icon(Icons.swap_horiz, size: 16),
+                        label: const Text(
+                          'Promover Socio',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                        ),
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          ConvertClientDialog.show(context);
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ],
 
               // Names
               Row(
