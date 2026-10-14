@@ -54,11 +54,18 @@ class CashRegisterService {
     }
   }
 
-  Future<CashRegisterModel> closeRegister(double closingAmount) async {
+  Future<CashRegisterModel> closeRegister(
+    double closingAmount, {
+    Map<String, int>? billBreakdown,
+  }) async {
     try {
       final response = await _apiClient.dio.post(
         '${ApiConstants.cashRegister}/close',
-        data: {'closingAmount': closingAmount},
+        data: {
+          'closingAmount': closingAmount,
+          if (billBreakdown != null && billBreakdown.isNotEmpty)
+            'billBreakdown': billBreakdown,
+        },
       );
 
       final payload = response.data;

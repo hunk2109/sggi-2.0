@@ -1,4 +1,4 @@
-﻿class CashRegisterModel {
+class CashRegisterModel {
   final String id;
   final String userId;
   final double openingAmount;
@@ -9,6 +9,8 @@
   final DateTime createdAt;
   final DateTime? closedAt;
 
+  final String? closingBillBreakdown;
+
   CashRegisterModel({
     required this.id,
     required this.userId,
@@ -16,6 +18,7 @@
     this.closingAmount,
     this.expectedClosure,
     this.difference,
+    this.closingBillBreakdown,
     required this.isOpen,
     required this.createdAt,
     this.closedAt,
@@ -43,6 +46,7 @@
       closingAmount: json['closingAmount'] != null ? double.tryParse(json['closingAmount'].toString()) : null,
       expectedClosure: json['expectedClosure'] != null ? double.tryParse(json['expectedClosure'].toString()) : null,
       difference: json['difference'] != null ? double.tryParse(json['difference'].toString()) : null,
+      closingBillBreakdown: json['closingBillBreakdown']?.toString(),
       isOpen: json['isOpen'] == true || json['isOpen'] == 1,
       createdAt: parsedCreated,
       closedAt: parsedClosed,

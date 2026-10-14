@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../models/inventory_product_model.dart';
@@ -16,8 +16,20 @@ class ProductFormDialog extends ConsumerStatefulWidget {
 class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
   final _formKey = GlobalKey<FormState>();
 
+  static const List<String> _predefinedCategories = [
+    'Bebidas',
+    'Suplementos',
+    'Snacks & Barras',
+    'Ropa & Accesorios',
+    'Equipamiento & Fitness',
+    'Cuidado Personal',
+    'Otros',
+  ];
+
   late final TextEditingController _nameController;
-  late final TextEditingController _categoryController;
+  late String _selectedCategory;
+  late final TextEditingController _customCategoryController;
+  late final List<String> _categoryOptions;
   late final TextEditingController _priceController;
   late final TextEditingController _costController;
   late final TextEditingController _stockController;
@@ -33,7 +45,27 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
     super.initState();
     final p = widget.productToEdit;
     _nameController = TextEditingController(text: p?.name ?? '');
-    _categoryController = TextEditingController(text: p?.category ?? 'Suplementos');
+
+    _categoryOptions = List<String>.from(_predefinedCategories);
+    final rawCat = p?.category.trim();
+    if (rawCat != null && rawCat.isNotEmpty) {
+      if (!_categoryOptions.contains(rawCat)) {
+        if (rawCat.toLowerCase() == 'bebida') {
+          _selectedCategory = 'Bebidas';
+        } else if (rawCat.toLowerCase() == 'suplemento') {
+          _selectedCategory = 'Suplementos';
+        } else {
+          _categoryOptions.insert(0, rawCat);
+          _selectedCategory = rawCat;
+        }
+      } else {
+        _selectedCategory = rawCat;
+      }
+    } else {
+      _selectedCategory = 'Bebidas';
+    }
+    _customCategoryController = TextEditingController();
+
     _priceController = TextEditingController(text: p != null ? p.price.toStringAsFixed(2) : '');
     _costController = TextEditingController(text: p != null ? p.cost.toStringAsFixed(2) : '0.00');
     _stockController = TextEditingController(text: p != null ? p.quantityAvailable.toString() : '10');
@@ -45,7 +77,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
   @override
   void dispose() {
     _nameController.dispose();
-    _categoryController.dispose();
+    _customCategoryController.dispose();
     _priceController.dispose();
     _costController.dispose();
     _stockController.dispose();
@@ -55,15 +87,30 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
     super.dispose();
   }
 
+  IconData _getCategoryIcon(String category) {
+    final lower = category.toLowerCase();
+    if (lower.contains('bebida')) return Icons.local_drink;
+    if (lower.contains('suplement')) return Icons.fitness_center;
+    if (lower.contains('snack') || lower.contains('barra') || lower.contains('alimento')) return Icons.cookie_outlined;
+    if (lower.contains('ropa') || lower.contains('textil') || lower.contains('accesorio')) return Icons.checkroom;
+    if (lower.contains('equip') || lower.contains('fitness')) return Icons.sports_gymnastics;
+    if (lower.contains('cuidado') || lower.contains('personal')) return Icons.spa_outlined;
+    return Icons.category_outlined;
+  }
+
   Future<void> _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
 
+    final category = _selectedCategory == '__custom__'
+        ? _customCategoryController.text.trim()
+        : _selectedCategory;
+
     final data = {
       'name': _nameController.text.trim(),
       'description': _nameController.text.trim(),
-      'category': _categoryController.text.trim(),
+      'category': category.isNotEmpty ? category : 'General',
       'price': double.tryParse(_priceController.text.trim()) ?? 0.0,
       'cost': double.tryParse(_costController.text.trim()) ?? 0.0,
       'quantity': int.tryParse(_stockController.text.trim()) ?? 0,
@@ -158,6 +205,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
 
               // Category & SKU
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
                     child: Column(
@@ -165,11 +213,73 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                       children: [
                         const Text('Categoría *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                         const SizedBox(height: 6),
-                        TextFormField(
-                          controller: _categoryController,
-                          decoration: const InputDecoration(hintText: 'Bebidas, Suplementos...'),
-                          validator: (v) => v?.trim().isEmpty == true ? 'Requerido' : null,
+                        DropdownButtonFormField<String>(
+                          initialValue: _selectedCategory,
+                          isExpanded: true,
+                          dropdownColor: const Color(0xFF1E232B),
+                          decoration: const InputDecoration(
+                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                          ),
+                          items: [
+                            ..._categoryOptions.map((cat) => DropdownMenuItem(
+                              value: cat,
+                              child: Row(
+                                children: [
+                                  Icon(_getCategoryIcon(cat), size: 16, color: AppTheme.primary),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      cat,
+                                      style: const TextStyle(fontSize: 13),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )),
+                            const DropdownMenuItem(
+                              value: '__custom__',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.add_circle_outline, size: 16, color: Colors.amberAccent),
+                                  SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      '+ Otra Categoría...',
+                                      style: TextStyle(fontSize: 13, color: Colors.amberAccent, fontWeight: FontWeight.bold),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() {
+                                _selectedCategory = val;
+                              });
+                            }
+                          },
                         ),
+                        if (_selectedCategory == '__custom__') ...[
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: _customCategoryController,
+                            autofocus: true,
+                            decoration: const InputDecoration(
+                              hintText: 'Ej. Energizantes Especiales',
+                              prefixIcon: Icon(Icons.new_label_outlined, size: 18),
+                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            ),
+                            validator: (v) {
+                              if (_selectedCategory == '__custom__' && (v == null || v.trim().isEmpty)) {
+                                return 'Escriba la categoría';
+                              }
+                              return null;
+                            },
+                          ),
+                        ],
                       ],
                     ),
                   ),

@@ -28,4 +28,5 @@ class ApiConstants {
   static const String promotions = '/promotions';
   static const String activePromotions = '/promotions/active';
   static const String validatePromotion = '/promotions/validate';
+  static const String userRoles = '/user-roles';
 }

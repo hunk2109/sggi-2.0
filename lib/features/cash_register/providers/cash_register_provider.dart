@@ -149,12 +149,15 @@ class CashRegisterNotifier extends Notifier<CashRegisterState> {
     }
   }
 
-  Future<bool> closeRegister(double closingAmount) async {
+  Future<bool> closeRegister(
+    double closingAmount, {
+    Map<String, int>? billBreakdown,
+  }) async {
     state = state.copyWith(isProcessing: true, error: null);
     final service = ref.read(cashRegisterServiceProvider);
 
     try {
-      await service.closeRegister(closingAmount);
+      await service.closeRegister(closingAmount, billBreakdown: billBreakdown);
       final updatedHistory = await service.getHistory();
       state = state.copyWith(
         isProcessing: false,

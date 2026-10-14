@@ -9,6 +9,7 @@ import '../../memberships/services/promotion_service.dart';
 import '../models/gym_settings_model.dart';
 import '../providers/settings_provider.dart';
 import '../widgets/create_promotion_dialog.dart';
+import '../widgets/roles_permissions_tab.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -55,7 +56,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
     _loadAccessDbPath();
   }
 
@@ -221,6 +222,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
                   Tab(icon: Icon(Icons.fitness_center_outlined, size: 18), text: 'Datos del Gimnasio & Empresa'),
                   Tab(icon: Icon(Icons.notifications_active_outlined, size: 18), text: 'Reportes & Automatización'),
                   Tab(icon: Icon(Icons.fingerprint, size: 18), text: 'Biométrico & BD Access'),
+                  Tab(icon: Icon(Icons.security_outlined, size: 18), text: 'Roles & Permisos'),
                 ],
               ),
             ),
@@ -236,6 +238,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
                   _buildGymSettingsTab(gymState),
                   _buildAutomationTab(gymState),
                   _buildAccessDbTab(),
+                  const RolesPermissionsTab(),
                 ],
               ),
             ),
