@@ -31,12 +31,12 @@ class CashRegisterModel {
   factory CashRegisterModel.fromJson(Map<String, dynamic> json) {
     DateTime parsedCreated = DateTime.now();
     if (json['createdAt'] != null) {
-      parsedCreated = DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now();
+      parsedCreated = (DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()).toLocal();
     }
 
     DateTime? parsedClosed;
     if (json['closedAt'] != null) {
-      parsedClosed = DateTime.tryParse(json['closedAt'].toString());
+      parsedClosed = DateTime.tryParse(json['closedAt'].toString())?.toLocal();
     }
 
     return CashRegisterModel(
@@ -81,7 +81,7 @@ class CashTransactionModel {
       amount: double.tryParse(json['amount']?.toString() ?? '0') ?? 0.0,
       concept: json['concept']?.toString() ?? 'Gasto de caja',
       createdAt: json['createdAt'] != null
-          ? (DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now())
+          ? ((DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()).toLocal())
           : DateTime.now(),
     );
   }

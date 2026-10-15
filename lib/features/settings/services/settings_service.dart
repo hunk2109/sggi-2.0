@@ -4,6 +4,7 @@ import '../../../core/constants/api_constants.dart';
 import '../../../core/network/api_client.dart';
 import '../models/gym_settings_model.dart';
 import '../models/whatsapp_status_model.dart';
+import '../models/email_config_model.dart';
 
 class SettingsService {
   final ApiClient _apiClient;
@@ -266,6 +267,115 @@ class SettingsService {
       return {'success': false};
     } catch (e) {
       return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  // ================= EMAIL SETTINGS =================
+
+  Future<EmailConfigModel?> getEmailConfig() async {
+    try {
+      final response = await _apiClient.dio.get('${ApiConstants.emailSettings}/config/current');
+      dynamic payload = response.data;
+      if (payload is Map && payload.containsKey('data')) {
+        payload = payload['data'];
+      }
+      if (payload is Map<String, dynamic> && payload.isNotEmpty) {
+        return EmailConfigModel.fromJson(payload);
+      }
+      // Fallback: array de configs
+      final listResp = await _apiClient.dio.get('${ApiConstants.emailSettings}/config');
+      dynamic listData = listResp.data;
+      if (listData is Map && listData.containsKey('data')) listData = listData['data'];
+      if (listData is List && listData.isNotEmpty) {
+        final active = listData.firstWhere(
+          (e) => (e is Map && (e['isActive'] == true || e['isActive'] == 1)),
+          orElse: () => listData.first,
+        );
+        return EmailConfigModel.fromJson(Map<String, dynamic>.from(active as Map));
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<EmailConfigModel> saveEmailConfig(EmailConfigModel config) async {
+    try {
+      final response = await _apiClient.dio.post(
+        '${ApiConstants.emailSettings}/config/save',
+        data: config.toJson(),
+      );
+      dynamic payload = response.data;
+      if (payload is Map && payload.containsKey('data')) {
+        payload = payload['data'];
+      }
+      if (payload is Map<String, dynamic>) {
+        return EmailConfigModel.fromJson(payload);
+      }
+      return config;
+    } on DioException catch (e) {
+      throw Exception(
+        e.response?.data?['message'] ?? 'Error al guardar la configuración de correo',
+      );
+    }
+  }
+
+  Future<({bool success, String message})> verifyEmailConfig(String testEmail) async {
+    try {
+      final response = await _apiClient.dio.post(
+        '${ApiConstants.emailSettings}/config/verify-active',
+        data: {'recipientEmail': testEmail.trim()},
+      );
+      final payload = response.data;
+      if (payload is Map && payload['success'] == true) {
+        return (
+          success: true,
+          message: payload['message']?.toString() ?? 'Configuración de correo verificada exitosamente',
+        );
+      }
+      return (
+        success: false,
+        message: payload?['message']?.toString() ?? 'Error al verificar la configuración',
+      );
+    } on DioException catch (e) {
+      return (
+        success: false,
+        message: e.response?.data?['message']?.toString() ??
+            e.message ??
+            'Error al verificar la configuración de correo',
+      );
+    } catch (e) {
+      return (success: false, message: e.toString());
+    }
+  }
+
+  Future<({bool success, String message})> sendTestEmail(
+    String recipientEmail, {
+    String? subject,
+    String? message,
+  }) async {
+    try {
+      await _apiClient.dio.post(
+        '${ApiConstants.emailSettings}/send-test',
+        data: {
+          'recipientEmail': recipientEmail.trim(),
+          if (subject != null && subject.isNotEmpty) 'subject': subject,
+          if (message != null && message.isNotEmpty) 'message': message,
+        },
+      );
+      return (
+        success: true,
+        message: 'Correo de prueba enviado exitosamente a $recipientEmail',
+      );
+    } on DioException catch (e) {
+      return (
+        success: false,
+        message: e.response?.data?['message']?.toString() ??
+            e.message ??
+            'Error al enviar correo de prueba',
+      );
+    } catch (e) {
+      return (success: false, message: e.toString());
     }
   }
 }

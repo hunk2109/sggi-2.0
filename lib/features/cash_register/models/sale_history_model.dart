@@ -85,7 +85,7 @@ class SaleHistoryModel {
 
     DateTime parsedDate = DateTime.now();
     if (json['createdAt'] != null) {
-      parsedDate = DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now();
+      parsedDate = (DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()).toLocal();
     }
 
     final total = (json['totalAmount'] is num)

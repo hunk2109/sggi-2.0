@@ -8,7 +8,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../access/screens/access_control_screen.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../dashboard/screens/dashboard_screen.dart';
-import '../../members/screens/members_screen.dart';
+import '../../members/screens/members_hub_screen.dart';
 import '../../pos/screens/pos_screen.dart';
 import '../../cash_register/screens/cash_register_screen.dart';
 import '../../inventory/screens/inventory_screen.dart';
@@ -427,7 +427,7 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
       case 1:
         return const PosScreen();
       case 2:
-        return const MembersScreen();
+        return const MembersHubScreen();
       case 3:
         return const AccessControlScreen();
       case 4:

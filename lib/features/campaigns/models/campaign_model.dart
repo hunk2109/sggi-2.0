@@ -36,12 +36,12 @@ class CampaignModel {
       messageTemplate: json['messageTemplate']?.toString() ?? '',
       attachedCouponCode: json['attachedCouponCode']?.toString(),
       status: json['status']?.toString() ?? 'COMPLETED',
-      scheduledAt: json['scheduledAt'] != null ? DateTime.tryParse(json['scheduledAt'].toString()) : null,
+      scheduledAt: json['scheduledAt'] != null ? DateTime.tryParse(json['scheduledAt'].toString())?.toLocal() : null,
       recipientsCount: (json['recipientsCount'] as num?)?.toInt() ?? 0,
       successfulSends: (json['successfulSends'] as num?)?.toInt() ?? 0,
       failedSends: (json['failedSends'] as num?)?.toInt() ?? 0,
       createdAt: json['createdAt'] != null
-          ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
+          ? ((DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()).toLocal())
           : DateTime.now(),
     );
   }

@@ -12,6 +12,7 @@ class ApiConstants {
   static const String members = '/members';
   static const String memberships = '/memberships';
   static const String memberMemberships = '/member-memberships';
+  static const String groups = '/groups';
   static const String payments = '/payments';
   static const String sales = '/sales';
   static const String products = '/products';

@@ -45,7 +45,7 @@ class CloseCashDialog extends ConsumerStatefulWidget {
 class _CloseCashDialogState extends ConsumerState<CloseCashDialog> {
   final _closingController = TextEditingController();
   final Map<int, TextEditingController> _denomControllers = {};
-  final _currency = NumberFormat.currency(locale: 'es_DO', symbol: 'RD\$ ', decimalDigits: 2);
+  final _currency = NumberFormat.currency(locale: 'en_US', symbol: 'RD\$ ', decimalDigits: 2);
   bool _isLoading = false;
   bool _isBreakdownMode = true;
 

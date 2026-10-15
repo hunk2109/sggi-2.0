@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../models/member_model.dart';
@@ -42,8 +42,12 @@ class _NewMemberDialogState extends ConsumerState<NewMemberDialog> {
     _addressController = TextEditingController(text: m?.address ?? '');
     _emergencyContactController = TextEditingController(text: m?.emergencyContact ?? '');
     _emergencyPhoneController = TextEditingController(text: m?.emergencyPhone ?? '');
-    _gender = m?.gender ?? 'M';
-    if (_gender != 'M' && _gender != 'F') _gender = 'M';
+    final rawGender = m?.gender?.toString().toLowerCase().trim() ?? 'm';
+    if (rawGender == 'female' || rawGender == 'f' || rawGender == 'femenino') {
+      _gender = 'F';
+    } else {
+      _gender = 'M';
+    }
   }
 
   @override
@@ -70,7 +74,7 @@ class _NewMemberDialogState extends ConsumerState<NewMemberDialog> {
       'phone': _phoneController.text.trim(),
       'documentId': _documentIdController.text.trim(),
       'email': _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
-      'gender': _gender,
+      'gender': _gender == 'F' ? 'female' : 'male',
       'address': _addressController.text.trim().isEmpty ? null : _addressController.text.trim(),
       'emergencyContact': _emergencyContactController.text.trim().isEmpty ? null : _emergencyContactController.text.trim(),
       'emergencyPhone': _emergencyPhoneController.text.trim().isEmpty ? null : _emergencyPhoneController.text.trim(),

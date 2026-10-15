@@ -18,7 +18,7 @@ class EmployeesScreen extends ConsumerStatefulWidget {
 class _EmployeesScreenState extends ConsumerState<EmployeesScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final _searchController = TextEditingController();
-  final _currency = NumberFormat.currency(locale: 'es_DO', symbol: 'RD\$ ', decimalDigits: 2);
+  final _currency = NumberFormat.currency(locale: 'en_US', symbol: 'RD\$ ', decimalDigits: 2);
   final _dateOnly = DateFormat('dd/MM/yyyy');
 
   final List<String> _months = [

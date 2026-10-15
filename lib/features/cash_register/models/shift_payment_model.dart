@@ -31,12 +31,12 @@ class ShiftPaymentModel {
   factory ShiftPaymentModel.fromJson(Map<String, dynamic> json) {
     DateTime? parsedPaymentDate;
     if (json['paymentDate'] != null) {
-      parsedPaymentDate = DateTime.tryParse(json['paymentDate'].toString());
+      parsedPaymentDate = DateTime.tryParse(json['paymentDate'].toString())?.toLocal();
     }
 
     DateTime parsedCreatedAt = DateTime.now();
     if (json['createdAt'] != null) {
-      parsedCreatedAt = DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now();
+      parsedCreatedAt = (DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()).toLocal();
     }
 
     return ShiftPaymentModel(

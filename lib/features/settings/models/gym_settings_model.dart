@@ -21,6 +21,13 @@ class GymSettingsModel {
   final String? mb360Ip;
   final int? mb360Port;
   final String ticketPaperSize; // '80mm', '70mm', '58mm', 'a4'
+  final bool enableMembershipRenewal;
+  final bool enablePaymentReminders;
+  final bool enableBirthdayEmails;
+  final bool enableAnniversaryEmails;
+  final bool enableExpirationWarnings;
+  final bool enableCampaignScheduler;
+  final bool enableDailySummaryReport;
 
   GymSettingsModel({
     this.id,
@@ -45,6 +52,13 @@ class GymSettingsModel {
     this.mb360Ip,
     this.mb360Port,
     this.ticketPaperSize = '80mm',
+    this.enableMembershipRenewal = true,
+    this.enablePaymentReminders = true,
+    this.enableBirthdayEmails = true,
+    this.enableAnniversaryEmails = true,
+    this.enableExpirationWarnings = true,
+    this.enableCampaignScheduler = true,
+    this.enableDailySummaryReport = true,
   });
 
   factory GymSettingsModel.fromJson(Map<String, dynamic> json) {
@@ -77,6 +91,13 @@ class GymSettingsModel {
           ? (json['mb360Port'] as num).toInt()
           : int.tryParse(json['mb360Port']?.toString() ?? ''),
       ticketPaperSize: json['ticketPaperSize']?.toString() ?? '80mm',
+      enableMembershipRenewal: json['enableMembershipRenewal'] != false,
+      enablePaymentReminders: json['enablePaymentReminders'] != false,
+      enableBirthdayEmails: json['enableBirthdayEmails'] != false,
+      enableAnniversaryEmails: json['enableAnniversaryEmails'] != false,
+      enableExpirationWarnings: json['enableExpirationWarnings'] != false,
+      enableCampaignScheduler: json['enableCampaignScheduler'] != false,
+      enableDailySummaryReport: json['enableDailySummaryReport'] != false,
     );
   }
 
@@ -103,6 +124,13 @@ class GymSettingsModel {
       if (mb360Ip != null) 'mb360Ip': mb360Ip,
       if (mb360Port != null) 'mb360Port': mb360Port,
       'ticketPaperSize': ticketPaperSize,
+      'enableMembershipRenewal': enableMembershipRenewal,
+      'enablePaymentReminders': enablePaymentReminders,
+      'enableBirthdayEmails': enableBirthdayEmails,
+      'enableAnniversaryEmails': enableAnniversaryEmails,
+      'enableExpirationWarnings': enableExpirationWarnings,
+      'enableCampaignScheduler': enableCampaignScheduler,
+      'enableDailySummaryReport': enableDailySummaryReport,
     };
   }
 
@@ -129,6 +157,13 @@ class GymSettingsModel {
     String? mb360Ip,
     int? mb360Port,
     String? ticketPaperSize,
+    bool? enableMembershipRenewal,
+    bool? enablePaymentReminders,
+    bool? enableBirthdayEmails,
+    bool? enableAnniversaryEmails,
+    bool? enableExpirationWarnings,
+    bool? enableCampaignScheduler,
+    bool? enableDailySummaryReport,
   }) {
     return GymSettingsModel(
       id: id ?? this.id,
@@ -153,6 +188,13 @@ class GymSettingsModel {
       mb360Ip: mb360Ip ?? this.mb360Ip,
       mb360Port: mb360Port ?? this.mb360Port,
       ticketPaperSize: ticketPaperSize ?? this.ticketPaperSize,
+      enableMembershipRenewal: enableMembershipRenewal ?? this.enableMembershipRenewal,
+      enablePaymentReminders: enablePaymentReminders ?? this.enablePaymentReminders,
+      enableBirthdayEmails: enableBirthdayEmails ?? this.enableBirthdayEmails,
+      enableAnniversaryEmails: enableAnniversaryEmails ?? this.enableAnniversaryEmails,
+      enableExpirationWarnings: enableExpirationWarnings ?? this.enableExpirationWarnings,
+      enableCampaignScheduler: enableCampaignScheduler ?? this.enableCampaignScheduler,
+      enableDailySummaryReport: enableDailySummaryReport ?? this.enableDailySummaryReport,
     );
   }
 }

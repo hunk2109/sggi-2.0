@@ -8,38 +8,97 @@ class MembershipService {
 
   MembershipService(this._apiClient);
 
+  List<dynamic> _extractList(dynamic payload) {
+    dynamic current = payload;
+    while (current is Map && current.containsKey('data')) {
+      current = current['data'];
+    }
+    if (current is List) return current;
+    return [];
+  }
+
   Future<List<MembershipModel>> getActiveMemberships() async {
     try {
       final response = await _apiClient.dio.get('${ApiConstants.memberships}/active');
-      final payload = response.data;
-
-      List<dynamic> list = [];
-      if (payload is Map && payload.containsKey('data')) {
-        final inner = payload['data'];
-        if (inner is List) list = inner;
-      } else if (payload is List) {
-        list = payload;
-      }
-
-      return list.map((e) => MembershipModel.fromJson(e as Map<String, dynamic>)).toList();
+      final list = _extractList(response.data);
+      return list.map((e) => MembershipModel.fromJson(Map<String, dynamic>.from(e as Map))).toList();
     } catch (_) {
-      // Fallback a listado general si el endpoint /active no está disponible
       try {
         final response = await _apiClient.dio.get(ApiConstants.memberships, queryParameters: {'limit': 50});
-        final payload = response.data;
-        List<dynamic> list = [];
-        if (payload is Map && payload.containsKey('data')) {
-          final inner = payload['data'];
-          if (inner is Map && inner.containsKey('data') && inner['data'] is List) {
-            list = inner['data'] as List;
-          } else if (inner is List) {
-            list = inner;
-          }
-        }
-        return list.map((e) => MembershipModel.fromJson(e as Map<String, dynamic>)).toList();
+        final list = _extractList(response.data);
+        return list.map((e) => MembershipModel.fromJson(Map<String, dynamic>.from(e as Map))).toList();
       } catch (e) {
         return [];
       }
+    }
+  }
+
+  Future<List<MembershipModel>> getAllMemberships({int page = 1, int limit = 50}) async {
+    try {
+      final response = await _apiClient.dio.get(
+        ApiConstants.memberships,
+        queryParameters: {'page': page, 'limit': limit},
+      );
+      final list = _extractList(response.data);
+      return list.map((e) => MembershipModel.fromJson(Map<String, dynamic>.from(e as Map))).toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  Future<MembershipModel> createMembership(Map<String, dynamic> data) async {
+    try {
+      final response = await _apiClient.dio.post(
+        ApiConstants.memberships,
+        data: data,
+      );
+      final payload = response.data;
+      dynamic current = payload;
+      while (current is Map && current.containsKey('data') && current['data'] is Map) {
+        current = current['data'];
+      }
+      Map<String, dynamic> resMap = current is Map ? Map<String, dynamic>.from(current) : {};
+      return MembershipModel.fromJson(resMap);
+    } on DioException catch (e) {
+      final msg = e.response?.data?['message'] ?? e.message ?? 'Error al crear membresía';
+      throw Exception(msg is List ? msg.join(', ') : msg);
+    }
+  }
+
+  Future<MembershipModel> updateMembership(String id, Map<String, dynamic> data) async {
+    try {
+      final response = await _apiClient.dio.put(
+        '${ApiConstants.memberships}/$id',
+        data: data,
+      );
+      final payload = response.data;
+      dynamic current = payload;
+      while (current is Map && current.containsKey('data') && current['data'] is Map) {
+        current = current['data'];
+      }
+      Map<String, dynamic> resMap = current is Map ? Map<String, dynamic>.from(current) : {};
+      return MembershipModel.fromJson(resMap);
+    } on DioException catch (e) {
+      final msg = e.response?.data?['message'] ?? e.message ?? 'Error al actualizar membresía';
+      throw Exception(msg is List ? msg.join(', ') : msg);
+    }
+  }
+
+  Future<bool> deleteMembership(String id) async {
+    try {
+      await _apiClient.dio.delete('${ApiConstants.memberships}/$id');
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<bool> toggleActive(String id, bool currentStatus) async {
+    try {
+      await updateMembership(id, {'isActive': !currentStatus});
+      return true;
+    } catch (e) {
+      return false;
     }
   }
 

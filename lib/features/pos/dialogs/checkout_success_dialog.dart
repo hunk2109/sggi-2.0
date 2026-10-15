@@ -69,7 +69,7 @@ class _CheckoutSuccessDialogState extends ConsumerState<CheckoutSuccessDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final currency = NumberFormat.currency(locale: 'es_DO', symbol: 'RD\$ ', decimalDigits: 2);
+    final currency = NumberFormat.currency(locale: 'en_US', symbol: 'RD\$ ', decimalDigits: 2);
 
     return Dialog(
       backgroundColor: const Color(0xFF1B2028),

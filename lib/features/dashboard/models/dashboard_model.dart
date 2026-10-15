@@ -206,7 +206,7 @@ class RecentAttendanceItem {
   factory RecentAttendanceItem.fromJson(Map<String, dynamic> json) {
     DateTime? parsedTime;
     if (json['time'] != null) {
-      parsedTime = DateTime.tryParse(json['time'].toString());
+      parsedTime = DateTime.tryParse(json['time'].toString())?.toLocal();
     }
     return RecentAttendanceItem(
       id: json['id']?.toString() ?? '',
@@ -239,7 +239,7 @@ class RecentSaleItem {
   factory RecentSaleItem.fromJson(Map<String, dynamic> json) {
     DateTime? parsedTime;
     if (json['time'] != null) {
-      parsedTime = DateTime.tryParse(json['time'].toString());
+      parsedTime = DateTime.tryParse(json['time'].toString())?.toLocal();
     }
     return RecentSaleItem(
       id: json['id']?.toString() ?? '',

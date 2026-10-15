@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/services/receipt_printing_service.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../memberships/models/group_model.dart';
+import '../../memberships/providers/group_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../models/member_model.dart';
 import '../providers/members_provider.dart';
@@ -27,8 +29,9 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
   List<Map<String, dynamic>> _membershipsHistory = [];
   Map<String, dynamic> _paymentHistory = {};
   List<Map<String, dynamic>> _attendancesHistory = [];
+  List<GroupModel> _memberGroups = [];
 
-  final _currencyFormat = NumberFormat.currency(locale: 'es_DO', symbol: 'RD\$ ', decimalDigits: 2);
+  final _currencyFormat = NumberFormat.currency(locale: 'en_US', symbol: 'RD\$ ', decimalDigits: 2);
   final _dateFormat = DateFormat('dd/MM/yyyy');
   final _dateTimeFormat = DateFormat('dd/MM/yyyy hh:mm a');
 
@@ -36,7 +39,7 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
   void initState() {
     super.initState();
     _currentMember = widget.member;
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
     _loadAllHistory();
   }
 
@@ -49,6 +52,7 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
   Future<void> _loadAllHistory() async {
     setState(() => _isLoadingData = true);
     final service = ref.read(memberServiceProvider);
+    final groupService = ref.read(groupServiceProvider);
 
     try {
       final futures = await Future.wait([
@@ -56,6 +60,7 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
         service.getPaymentHistory(_currentMember.id),
         service.getAttendancesHistory(_currentMember.id),
         service.getMemberById(_currentMember.id),
+        groupService.getMemberGroups(_currentMember.id),
       ]);
 
       if (mounted) {
@@ -64,6 +69,7 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
           _paymentHistory = futures[1] as Map<String, dynamic>;
           _attendancesHistory = futures[2] as List<Map<String, dynamic>>;
           _currentMember = futures[3] as MemberModel;
+          _memberGroups = futures[4] as List<GroupModel>;
           _isLoadingData = false;
         });
       }
@@ -169,6 +175,19 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
                       ],
                     ),
                   ),
+                  Tab(
+                    child: Row(
+                      children: [
+                        const Icon(Icons.groups_outlined, size: 16),
+                        const SizedBox(width: 8),
+                        Text(
+                          _memberGroups.isNotEmpty
+                              ? 'Grupo Familiar (${_memberGroups.first.companions.length})'
+                              : 'Grupo Familiar',
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -184,6 +203,7 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
                         _buildPaymentsTab(),
                         _buildAttendancesTab(),
                         _buildPersonalDataTab(),
+                        _buildFamilyGroupTab(),
                       ],
                     ),
             ),
@@ -420,7 +440,7 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
                       ),
                       Text(
                         _attendancesHistory.isNotEmpty
-                            ? 'Última: ${_dateFormat.format(DateTime.tryParse(_attendancesHistory.first['visitDate']?.toString() ?? '') ?? DateTime.now())}'
+                            ? 'Última: ${_dateFormat.format((DateTime.tryParse(_attendancesHistory.first['visitDate']?.toString() ?? '') ?? DateTime.now()).toLocal())}'
                             : 'Sin registros',
                         style: const TextStyle(fontSize: 11, color: Colors.white60),
                       ),
@@ -482,8 +502,8 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
               final planName = planMap?['name']?.toString() ?? 'Plan';
               final startRaw = m['startDate']?.toString();
               final endRaw = m['endDate']?.toString() ?? m['acc_enddate']?.toString();
-              final startDt = startRaw != null ? DateTime.tryParse(startRaw) : null;
-              final endDt = endRaw != null ? DateTime.tryParse(endRaw) : null;
+              final startDt = startRaw != null ? DateTime.tryParse(startRaw)?.toLocal() : null;
+              final endDt = endRaw != null ? DateTime.tryParse(endRaw)?.toLocal() : null;
               final price = double.tryParse(planMap?['price']?.toString() ?? m['price']?.toString() ?? '') ?? 0.0;
               final paid = double.tryParse(m['amountPaid']?.toString() ?? '') ?? 0.0;
               final pStatus = m['paymentStatus']?.toString() ?? (m['isPaid'] == true ? 'PAID' : 'PENDING');
@@ -585,7 +605,7 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
 
               return DataRow(
                 cells: [
-                  DataCell(Text(dt != null ? _dateTimeFormat.format(dt) : '-')),
+                  DataCell(Text(dt != null ? _dateTimeFormat.format(dt.isUtc ? dt.toLocal() : dt) : '-')),
                   DataCell(Text(_currencyFormat.format(amount), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.greenAccent))),
                   DataCell(Text(_translateMethod(method))),
                   DataCell(Text(refCode, style: const TextStyle(color: Colors.white70, fontSize: 12))),
@@ -644,8 +664,8 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
     final planName = matchedMm?['membership']?['name']?.toString() ?? _currentMember.activePlanName ?? 'Membresía General';
     final rawStart = matchedMm?['startDate']?.toString();
     final rawEnd = matchedMm?['endDate']?.toString();
-    final startDate = rawStart != null ? DateTime.tryParse(rawStart) : null;
-    final endDate = rawEnd != null ? DateTime.tryParse(rawEnd) : _currentMember.membershipEndDate;
+    final startDate = rawStart != null ? DateTime.tryParse(rawStart)?.toLocal() : null;
+    final endDate = rawEnd != null ? DateTime.tryParse(rawEnd)?.toLocal() : _currentMember.membershipEndDate;
 
     final promoCode = matchedMm?['appliedPromotionCode']?.toString();
     final discountPercent = matchedMm?['discountPercentage'] != null
@@ -946,7 +966,7 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
 
               return DataRow(
                 cells: [
-                  DataCell(Text(dt != null ? _dateTimeFormat.format(dt) : '-')),
+                  DataCell(Text(dt != null ? _dateTimeFormat.format(dt.isUtc ? dt.toLocal() : dt) : '-')),
                   DataCell(Text(device, style: const TextStyle(fontSize: 12))),
                   DataCell(
                     Container(
@@ -1137,4 +1157,660 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
     if (low.contains('transfer')) return 'Transferencia';
     return m;
   }
+
+  // =========================================================================
+  // TAB DE GRUPO FAMILIAR / ACOMPAÑANTES
+  // =========================================================================
+
+  Widget _buildFamilyGroupTab() {
+    if (_memberGroups.isEmpty) {
+      return Center(
+        child: Container(
+          width: 520,
+          padding: const EdgeInsets.all(32),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1B2028),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: Colors.purple.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.family_restroom_outlined, size: 48, color: Colors.purpleAccent),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'Sin Grupo Familiar Vinculado',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Este socio no cuenta actualmente con una membresía grupal activa ni figura como acompañante de otro titular familiar.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: Colors.white60, height: 1.4),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primary,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: const Icon(Icons.add_card, size: 18),
+                label: const Text('Asignar Plan Familiar / Grupal'),
+                onPressed: _openAssignMembership,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final group = _memberGroups.first;
+    final isTitular = group.responsibleUserId == _currentMember.userId || group.responsibleUserId == _currentMember.id;
+    final maxComp = group.maxGroupCompanions ?? 0;
+    final currentCount = group.companions.length;
+    final progress = maxComp > 0 ? (currentCount / maxComp).clamp(0.0, 1.0) : 0.0;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Banner Principal del Grupo
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  const Color(0xFF2E1A47).withValues(alpha: 0.8),
+                  const Color(0xFF1B2028),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.purpleAccent.withValues(alpha: 0.3)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.purple.withValues(alpha: 0.25),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.purpleAccent.withValues(alpha: 0.4)),
+                      ),
+                      child: const Icon(Icons.groups_outlined, color: Colors.purpleAccent, size: 30),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  group.name,
+                                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: isTitular
+                                      ? Colors.tealAccent.withValues(alpha: 0.15)
+                                      : Colors.orangeAccent.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: isTitular ? Colors.tealAccent : Colors.orangeAccent,
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Text(
+                                  isTitular ? '★ Titular Responsable' : 'Acompañante Familiar',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: isTitular ? Colors.tealAccent : Colors.orangeAccent,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Plan: ${group.membershipName ?? "Membresía Familiar"} • Vigencia: ${group.startDate != null ? _dateFormat.format(group.startDate!) : "-"} al ${group.endDate != null ? _dateFormat.format(group.endDate!) : "-"}',
+                            style: const TextStyle(fontSize: 13, color: Colors.white70),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 18),
+                const Divider(color: Colors.white12, height: 1),
+                const SizedBox(height: 16),
+
+                // Métricas y Cupo
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                maxComp > 0
+                                    ? 'Cupos de familiares: $currentCount de $maxComp ocupados'
+                                    : 'Acompañantes registrados: $currentCount',
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white70),
+                              ),
+                              if (group.pricePerCompanion != null && group.pricePerCompanion! > 0)
+                                Text(
+                                  'Costo adicional: RD\$ ${group.pricePerCompanion!.toStringAsFixed(2)} / familiar',
+                                  style: const TextStyle(fontSize: 12, color: Colors.purpleAccent, fontWeight: FontWeight.w600),
+                                ),
+                            ],
+                          ),
+                          if (maxComp > 0) ...[
+                            const SizedBox(height: 8),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: LinearProgressIndicator(
+                                value: progress,
+                                minHeight: 8,
+                                backgroundColor: Colors.white10,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  progress >= 1.0 ? Colors.redAccent : Colors.purpleAccent,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: group.canAddCompanions ? Colors.purpleAccent.shade400 : Colors.grey.shade700,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      icon: const Icon(Icons.person_add_alt_1, size: 16),
+                      label: Text(
+                        group.canAddCompanions ? '+ Agregar Familiar' : 'Cupo Lleno',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                      onPressed: group.canAddCompanions ? () => _openAddCompanionDialog(group) : null,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // Título de Acompañantes
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Miembros Familiares / Acompañantes (${group.companions.length})',
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+              ),
+              if (group.companions.isNotEmpty)
+                Text(
+                  '${group.availableSlots} cupo(s) disponible(s)',
+                  style: const TextStyle(fontSize: 12, color: Colors.white54),
+                ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          // Lista de Acompañantes
+          if (group.companions.isEmpty) ...[
+            Container(
+              padding: const EdgeInsets.all(28),
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1B2028),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+              ),
+              child: Column(
+                children: [
+                  const Icon(Icons.person_outline, size: 36, color: Colors.white30),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'No hay acompañantes registrados todavía',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white70),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Haz clic en "+ Agregar Familiar" para vincular un socio existente como acompañante.',
+                    style: TextStyle(fontSize: 12, color: Colors.white38),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: group.companions.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 10),
+              itemBuilder: (context, index) {
+                final comp = group.companions[index];
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1B2028),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+                  ),
+                  child: Row(
+                    children: [
+                      // Avatar
+                      CircleAvatar(
+                        radius: 20,
+                        backgroundColor: Colors.purple.withValues(alpha: 0.2),
+                        child: Text(
+                          comp.memberName.isNotEmpty ? comp.memberName[0].toUpperCase() : 'F',
+                          style: const TextStyle(color: Colors.purpleAccent, fontWeight: FontWeight.bold, fontSize: 15),
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+
+                      // Nombre y Datos
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  comp.memberName,
+                                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.purpleAccent.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(color: Colors.purpleAccent.withValues(alpha: 0.3)),
+                                  ),
+                                  child: Text(
+                                    comp.relationship,
+                                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.purpleAccent),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Código: ${comp.memberCode ?? "S/C"}${comp.memberPhone != null && comp.memberPhone!.isNotEmpty ? " • Tel: ${comp.memberPhone}" : ""}${comp.memberEmail != null && comp.memberEmail!.isNotEmpty ? " • ${comp.memberEmail}" : ""}',
+                              style: const TextStyle(fontSize: 12, color: Colors.white54),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Estado
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          'Activo',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.greenAccent),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+
+                      // Botón Desvincular
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+                        tooltip: 'Desvincular Familiar',
+                        onPressed: () => _confirmRemoveCompanion(group, comp),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // Diálogo para Agregar Familiar
+  Future<void> _openAddCompanionDialog(GroupModel group) async {
+    final memberService = ref.read(memberServiceProvider);
+    final groupService = ref.read(groupServiceProvider);
+
+    // Cargar socios activos para seleccionar
+    final membersResponse = await memberService.getMembers(limit: 100);
+    final existingCompanionIds = group.companions.map((c) => c.memberId).toSet();
+    
+    // Filtrar para no mostrar al titular ni a quienes ya están en el grupo
+    final availableMembers = membersResponse.members.where((m) {
+      if (m.id == _currentMember.id) return false;
+      if (existingCompanionIds.contains(m.id)) return false;
+      return true;
+    }).toList();
+
+    if (!mounted) return;
+
+    String? selectedMemberId;
+    String selectedRelationship = 'Esposo/a';
+    final customRelCtrl = TextEditingController();
+    bool isCustomRel = false;
+    bool isSubmitting = false;
+    String searchQuery = '';
+
+    final relationshipsList = ['Esposo/a', 'Hijo/a', 'Hermano/a', 'Padre/Madre', 'Primo/a', 'Sobrino/a', 'Otro'];
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final filteredMembers = availableMembers.where((m) {
+            if (searchQuery.trim().isEmpty) return true;
+            final q = searchQuery.toLowerCase();
+            return m.fullName.toLowerCase().contains(q) ||
+                (m.documentId?.toLowerCase().contains(q) ?? false) ||
+                (m.memberCode?.toLowerCase().contains(q) ?? false);
+          }).toList();
+
+          return AlertDialog(
+            backgroundColor: const Color(0xFF1B2028),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.purple.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.person_add_alt_1, color: Colors.purpleAccent, size: 22),
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  'Agregar Familiar al Grupo',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: Colors.white),
+                ),
+              ],
+            ),
+            content: SizedBox(
+              width: 500,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Vincula a un socio existente al grupo "${group.name}". Se sincronizará su vigencia y acceso.',
+                      style: const TextStyle(fontSize: 13, color: Colors.white60),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Buscar socio
+                    const Text('Buscar Socio *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white70)),
+                    const SizedBox(height: 6),
+                    TextField(
+                      decoration: InputDecoration(
+                        hintText: 'Buscar por nombre, código o cédula...',
+                        prefixIcon: const Icon(Icons.search, size: 20),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      onChanged: (val) => setDialogState(() => searchQuery = val),
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    // Lista de resultados
+                    Container(
+                      height: 160,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF14171C),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.white12),
+                      ),
+                      child: filteredMembers.isEmpty
+                          ? const Center(
+                              child: Text(
+                                'No se encontraron socios disponibles.\nAsegúrate de que esté registrado en el sistema.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(fontSize: 12, color: Colors.white38),
+                              ),
+                            )
+                          : ListView.builder(
+                              itemCount: filteredMembers.length,
+                              itemBuilder: (context, idx) {
+                                final m = filteredMembers[idx];
+                                final isSelected = m.id == selectedMemberId;
+                                return ListTile(
+                                  dense: true,
+                                  selected: isSelected,
+                                  selectedTileColor: Colors.purple.withValues(alpha: 0.15),
+                                  leading: CircleAvatar(
+                                    radius: 14,
+                                    backgroundColor: isSelected ? Colors.purpleAccent : Colors.white12,
+                                    child: Text(
+                                      m.firstName.isNotEmpty ? m.firstName[0].toUpperCase() : 'S',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: isSelected ? Colors.white : Colors.white70,
+                                      ),
+                                    ),
+                                  ),
+                                  title: Text(
+                                    m.fullName,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                      color: isSelected ? Colors.purpleAccent : Colors.white,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    'Código: ${m.displayCode} • ${m.phone ?? m.email ?? "Sin contacto"}',
+                                    style: const TextStyle(fontSize: 11, color: Colors.white54),
+                                  ),
+                                  trailing: isSelected
+                                      ? const Icon(Icons.check_circle, color: Colors.purpleAccent, size: 18)
+                                      : null,
+                                  onTap: () => setDialogState(() => selectedMemberId = m.id),
+                                );
+                              },
+                            ),
+                    ),
+
+                    const SizedBox(height: 18),
+
+                    // Parentesco
+                    const Text('Parentesco / Relación *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white70)),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: relationshipsList.map((rel) {
+                        final isSel = (!isCustomRel && selectedRelationship == rel) || (isCustomRel && rel == 'Otro');
+                        return ChoiceChip(
+                          label: Text(rel, style: TextStyle(fontSize: 12, color: isSel ? Colors.white : Colors.white70)),
+                          selected: isSel,
+                          selectedColor: Colors.purpleAccent.shade700,
+                          backgroundColor: const Color(0xFF272D37),
+                          onSelected: (selected) {
+                            if (selected) {
+                              setDialogState(() {
+                                if (rel == 'Otro') {
+                                  isCustomRel = true;
+                                } else {
+                                  isCustomRel = false;
+                                  selectedRelationship = rel;
+                                }
+                              });
+                            }
+                          },
+                        );
+                      }).toList(),
+                    ),
+
+                    if (isCustomRel) ...[
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: customRelCtrl,
+                        decoration: InputDecoration(
+                          hintText: 'Escribe el parentesco (ej: Ahijado, Sobrina, etc.)',
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: isSubmitting ? null : () => Navigator.of(ctx).pop(),
+                child: const Text('Cancelar', style: TextStyle(color: Colors.white60)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.purpleAccent.shade400,
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: (selectedMemberId == null || isSubmitting)
+                    ? null
+                    : () async {
+                        setDialogState(() => isSubmitting = true);
+                        final rel = isCustomRel && customRelCtrl.text.trim().isNotEmpty
+                            ? customRelCtrl.text.trim()
+                            : selectedRelationship;
+
+                        final result = await groupService.addCompanion(
+                          groupId: group.id,
+                          memberId: selectedMemberId!,
+                          relationship: rel,
+                        );
+
+                        if (context.mounted) {
+                          Navigator.of(ctx).pop();
+                          if (result.success) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('✓ Familiar agregado al grupo exitosamente'),
+                                backgroundColor: AppTheme.success,
+                              ),
+                            );
+                            await _loadAllHistory();
+                            ref.read(membersProvider.notifier).loadMembers();
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(result.message ?? 'Error al agregar familiar'),
+                                backgroundColor: AppTheme.error,
+                              ),
+                            );
+                          }
+                        }
+                      },
+                child: isSubmitting
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Text('Guardar y Vincular', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  // Diálogo para Desvincular Familiar
+  Future<void> _confirmRemoveCompanion(GroupModel group, GroupCompanionModel companion) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1B2028),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 24),
+            SizedBox(width: 10),
+            Text('¿Desvincular Familiar?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ],
+        ),
+        content: Text(
+          '¿Estás seguro de que deseas retirar a "${companion.memberName}" (${companion.relationship}) del grupo familiar?\n\nSu membresía asociada quedará cancelada.',
+          style: const TextStyle(fontSize: 13, color: Colors.white70, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancelar', style: TextStyle(color: Colors.white60)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.error),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Sí, Desvincular'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      final res = await ref.read(groupServiceProvider).removeCompanion(
+        groupId: group.id,
+        companionId: companion.id,
+      );
+
+      if (mounted) {
+        if (res.success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✓ Familiar desvinculado del grupo'),
+              backgroundColor: AppTheme.success,
+            ),
+          );
+          await _loadAllHistory();
+          ref.read(membersProvider.notifier).loadMembers();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(res.message ?? 'Error al desvincular familiar'),
+              backgroundColor: AppTheme.error,
+            ),
+          );
+        }
+      }
+    }
+  }
 }
+

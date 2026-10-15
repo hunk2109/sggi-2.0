@@ -37,7 +37,7 @@ class PromotionModel {
       maxUses: json['maxUses'] != null ? int.tryParse(json['maxUses'].toString()) : null,
       usesCount: json['usesCount'] != null ? int.tryParse(json['usesCount'].toString()) ?? 0 : 0,
       active: json['active'] == true || json['active'] == 1,
-      expiresAt: json['expiresAt'] != null ? DateTime.tryParse(json['expiresAt'].toString()) : null,
+      expiresAt: json['expiresAt'] != null ? DateTime.tryParse(json['expiresAt'].toString())?.toLocal() : null,
       isValid: json['isValid'] != null ? json['isValid'] == true : (json['active'] == true || json['active'] == 1),
       remainingUses: json['remainingUses'] != null ? int.tryParse(json['remainingUses'].toString()) : null,
     );

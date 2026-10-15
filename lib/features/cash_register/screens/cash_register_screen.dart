@@ -19,7 +19,7 @@ class CashRegisterScreen extends ConsumerStatefulWidget {
 }
 
 class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with SingleTickerProviderStateMixin {
-  final _currency = NumberFormat.currency(locale: 'es_DO', symbol: 'RD\$ ', decimalDigits: 2);
+  final _currency = NumberFormat.currency(locale: 'en_US', symbol: 'RD\$ ', decimalDigits: 2);
   final _dateTime = DateFormat('dd/MM/yyyy hh:mm a');
   final _timeFormat = DateFormat('hh:mm a');
 
@@ -1678,20 +1678,22 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.greenAccent.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
+          Expanded(
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.greenAccent.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.lock_open, color: Colors.greenAccent, size: 28),
                 ),
-                child: const Icon(Icons.lock_open, color: Colors.greenAccent, size: 28),
-              ),
-              const SizedBox(width: 16),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                   Row(
                     children: [
                       Container(
@@ -1773,9 +1775,12 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
                   ),
                 ],
               ),
-            ],
-          ),
-          Row(
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(width: 14),
+      Row(
             children: [
               OutlinedButton.icon(
                 icon: const Icon(Icons.money_off_csred_outlined, size: 16),

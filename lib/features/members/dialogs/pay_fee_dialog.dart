@@ -32,7 +32,7 @@ class PayFeeDialog extends ConsumerStatefulWidget {
 }
 
 class _PayFeeDialogState extends ConsumerState<PayFeeDialog> {
-  static final _currencyFormat = NumberFormat.currency(locale: 'es_DO', symbol: 'RD\$ ', decimalDigits: 2);
+  static final _currencyFormat = NumberFormat.currency(locale: 'en_US', symbol: 'RD\$ ', decimalDigits: 2);
 
   String _selectedMethod = 'cash';
   final _couponController = TextEditingController();

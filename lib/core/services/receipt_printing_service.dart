@@ -6,7 +6,7 @@ import '../../features/pos/models/product_model.dart';
 import '../../features/settings/models/gym_settings_model.dart';
 
 class ReceiptPrintingService {
-  static final _currencyFormat = NumberFormat.currency(locale: 'es_DO', symbol: 'RD\$ ', decimalDigits: 2);
+  static final _currencyFormat = NumberFormat.currency(locale: 'en_US', symbol: 'RD\$ ', decimalDigits: 2);
   static final _dateFormat = DateFormat('dd/MM/yyyy hh:mm a');
   static final _dateOnlyFormat = DateFormat('dd/MM/yyyy');
 

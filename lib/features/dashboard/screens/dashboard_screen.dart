@@ -12,7 +12,7 @@ class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key, this.onNavigate});
 
   static final _currency = NumberFormat.currency(
-    locale: 'es_DO',
+    locale: 'en_US',
     symbol: 'RD\$ ',
     decimalDigits: 2,
   );

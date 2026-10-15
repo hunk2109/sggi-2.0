@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../core/services/receipt_printing_service.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../memberships/models/membership_model.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../models/member_model.dart';
 import '../providers/members_provider.dart';
@@ -251,6 +252,41 @@ class _AssignMembershipDialogState extends ConsumerState<AssignMembershipDialog>
                   );
                 },
               ),
+
+              if (selectedPlan != null && selectedPlan.type == MembershipType.group) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.purple.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.purpleAccent.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.groups_outlined, color: Colors.purpleAccent, size: 22),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Membresía Familiar / Grupal',
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.purpleAccent),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Este plan convierte al socio en Titular de un Grupo Familiar. Permite registrar hasta ${selectedPlan.maxGroupCompanions ?? "varios"} familiares o acompañantes (${selectedPlan.pricePerCompanion != null && selectedPlan.pricePerCompanion! > 0 ? "RD\$ ${selectedPlan.pricePerCompanion!.toStringAsFixed(2)} c/u" : "incluidos en la tarifa"}).\nPodrás registrar y vincular a sus acompañantes desde el detalle del socio.',
+                              style: const TextStyle(fontSize: 12, color: Colors.white70, height: 1.3),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
 
               const SizedBox(height: 18),
 

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../models/gym_settings_model.dart';
 import '../models/whatsapp_status_model.dart';
+import '../models/email_config_model.dart';
 import '../services/settings_service.dart';
 
 final settingsServiceProvider = Provider<SettingsService>((ref) {
@@ -188,3 +189,117 @@ class WhatsappNotifier extends Notifier<WhatsappState> {
 final whatsappProvider = NotifierProvider<WhatsappNotifier, WhatsappState>(() {
   return WhatsappNotifier();
 });
+
+// ================= EMAIL CONFIGURATION STATE =================
+
+class EmailConfigState {
+  final bool isLoading;
+  final bool isSaving;
+  final bool isVerifying;
+  final bool isSendingTest;
+  final EmailConfigModel? config;
+  final String? error;
+  final String? successMessage;
+
+  EmailConfigState({
+    this.isLoading = false,
+    this.isSaving = false,
+    this.isVerifying = false,
+    this.isSendingTest = false,
+    this.config,
+    this.error,
+    this.successMessage,
+  });
+
+  EmailConfigState copyWith({
+    bool? isLoading,
+    bool? isSaving,
+    bool? isVerifying,
+    bool? isSendingTest,
+    EmailConfigModel? config,
+    String? error,
+    String? successMessage,
+  }) {
+    return EmailConfigState(
+      isLoading: isLoading ?? this.isLoading,
+      isSaving: isSaving ?? this.isSaving,
+      isVerifying: isVerifying ?? this.isVerifying,
+      isSendingTest: isSendingTest ?? this.isSendingTest,
+      config: config ?? this.config,
+      error: error,
+      successMessage: successMessage,
+    );
+  }
+}
+
+class EmailConfigNotifier extends Notifier<EmailConfigState> {
+  @override
+  EmailConfigState build() {
+    Future.microtask(() => loadConfig());
+    return EmailConfigState(isLoading: true);
+  }
+
+  Future<void> loadConfig() async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final service = ref.read(settingsServiceProvider);
+      final cfg = await service.getEmailConfig();
+      state = state.copyWith(isLoading: false, config: cfg ?? EmailConfigModel());
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+    }
+  }
+
+  Future<bool> saveConfig(EmailConfigModel newConfig) async {
+    state = state.copyWith(isSaving: true, error: null, successMessage: null);
+    try {
+      final service = ref.read(settingsServiceProvider);
+      final saved = await service.saveEmailConfig(newConfig);
+      state = state.copyWith(
+        isSaving: false,
+        config: saved,
+        successMessage: 'Configuración de correo guardada exitosamente.',
+      );
+      return true;
+    } catch (e) {
+      state = state.copyWith(isSaving: false, error: e.toString());
+      return false;
+    }
+  }
+
+  Future<({bool success, String message})> verifyConfig(String testEmail) async {
+    state = state.copyWith(isVerifying: true, error: null, successMessage: null);
+    try {
+      final service = ref.read(settingsServiceProvider);
+      final res = await service.verifyEmailConfig(testEmail);
+      if (res.success) {
+        final refreshed = await service.getEmailConfig();
+        state = state.copyWith(isVerifying: false, config: refreshed, successMessage: res.message);
+      } else {
+        state = state.copyWith(isVerifying: false, error: res.message);
+      }
+      return res;
+    } catch (e) {
+      state = state.copyWith(isVerifying: false, error: e.toString());
+      return (success: false, message: e.toString());
+    }
+  }
+
+  Future<({bool success, String message})> sendTestEmail(String testEmail, {String? subject, String? message}) async {
+    state = state.copyWith(isSendingTest: true, error: null, successMessage: null);
+    try {
+      final service = ref.read(settingsServiceProvider);
+      final res = await service.sendTestEmail(testEmail, subject: subject, message: message);
+      state = state.copyWith(isSendingTest: false);
+      return res;
+    } catch (e) {
+      state = state.copyWith(isSendingTest: false, error: e.toString());
+      return (success: false, message: e.toString());
+    }
+  }
+}
+
+final emailConfigProvider = NotifierProvider<EmailConfigNotifier, EmailConfigState>(() {
+  return EmailConfigNotifier();
+});
+

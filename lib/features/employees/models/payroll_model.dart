@@ -1,4 +1,4 @@
-﻿class PayrollModel {
+class PayrollModel {
   final String id;
   final String employeeId;
   final String employeeName;
@@ -47,7 +47,7 @@
 
     DateTime? pDate;
     if (json['paymentDate'] != null) {
-      pDate = DateTime.tryParse(json['paymentDate'].toString());
+      pDate = DateTime.tryParse(json['paymentDate'].toString())?.toLocal();
     }
 
     return PayrollModel(

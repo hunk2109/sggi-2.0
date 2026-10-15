@@ -1,4 +1,4 @@
-﻿class AttendanceModel {
+class AttendanceModel {
   final String id;
   final String? memberId;
   final String? memberCode;
@@ -46,7 +46,7 @@
     DateTime vDate = DateTime.now();
     final rawDate = json['visitDate']?.toString() ?? json['checkInTime']?.toString() ?? json['createdAt']?.toString();
     if (rawDate != null) {
-      vDate = DateTime.tryParse(rawDate) ?? DateTime.now();
+      vDate = (DateTime.tryParse(rawDate) ?? DateTime.now()).toLocal();
     }
 
     final reason = json['reason']?.toString() ?? json['rejectionReason']?.toString() ?? json['notes']?.toString();

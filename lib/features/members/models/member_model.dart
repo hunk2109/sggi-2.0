@@ -93,7 +93,7 @@ class MemberModel {
           activeMem['membershipName']?.toString();
       final rawEnd = activeMem['endDate']?.toString() ?? activeMem['acc_enddate']?.toString();
       if (rawEnd != null) {
-        endDate = DateTime.tryParse(rawEnd);
+        endDate = DateTime.tryParse(rawEnd)?.toLocal();
       }
     }
 
@@ -105,7 +105,7 @@ class MemberModel {
       }
     }
     if (endDate == null && json['membershipEndDate'] != null) {
-      endDate = DateTime.tryParse(json['membershipEndDate'].toString());
+      endDate = DateTime.tryParse(json['membershipEndDate'].toString())?.toLocal();
     }
 
     final bool hasMem = json['hasMembership'] == true ||
@@ -120,12 +120,12 @@ class MemberModel {
     DateTime parsedJoin = DateTime.now();
     final rawJoin = json['joinDate']?.toString() ?? json['createdAt']?.toString();
     if (rawJoin != null) {
-      parsedJoin = DateTime.tryParse(rawJoin) ?? DateTime.now();
+      parsedJoin = (DateTime.tryParse(rawJoin) ?? DateTime.now()).toLocal();
     }
 
     DateTime? parsedDob;
     if (json['dateOfBirth'] != null) {
-      parsedDob = DateTime.tryParse(json['dateOfBirth'].toString());
+      parsedDob = DateTime.tryParse(json['dateOfBirth'].toString())?.toLocal();
     }
 
     return MemberModel(
