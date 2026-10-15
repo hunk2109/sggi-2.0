@@ -262,10 +262,14 @@ class _RolesPermissionsTabState extends ConsumerState<RolesPermissionsTab> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.white12),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 16,
+              runSpacing: 14,
               children: [
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(selectedRoleData.icon, color: selectedRoleData.color, size: 24),
                     const SizedBox(width: 10),
@@ -286,11 +290,12 @@ class _RolesPermissionsTabState extends ConsumerState<RolesPermissionsTab> {
                 ),
                 Wrap(
                   spacing: 10,
+                  runSpacing: 8,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     // Search bar
                     SizedBox(
-                      width: 220,
+                      width: 200,
                       height: 38,
                       child: TextField(
                         controller: _searchCtrl,

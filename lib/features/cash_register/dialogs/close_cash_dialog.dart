@@ -210,18 +210,18 @@ class _CloseCashDialogState extends ConsumerState<CloseCashDialog> {
     final opening = widget.register.openingAmount;
 
     // Filter sales from current shift
-    final cashSales = state.sales
-        .where((s) => s.status != 'cancelled' && (s.paymentMethod == 'cash' || s.paymentMethod.isEmpty))
-        .fold(0.0, (sum, s) => sum + s.totalAmount);
-
+    final cashSales = state.cashSalesAmount;
     final otherSales = state.sales
         .where((s) => s.status != 'cancelled' && s.paymentMethod != 'cash' && s.paymentMethod.isNotEmpty)
         .fold(0.0, (sum, s) => sum + s.totalAmount);
 
+    final cashPayments = state.cashPaymentsAmount;
+    final otherPayments = state.otherPaymentsAmount;
+
     final withdrawals = state.totalWithdrawals;
 
-    // Monto esperado en gaveta física
-    final expectedCash = opening + cashSales - withdrawals;
+    // Monto esperado en gaveta física (Fondo Inicial + Ventas Efectivo + Membresías Efectivo - Retiros)
+    final expectedCash = opening + cashSales + cashPayments - withdrawals;
 
     final entered = double.tryParse(_closingController.text.trim()) ?? 0.0;
     final diff = entered - expectedCash;
@@ -322,10 +322,20 @@ class _CloseCashDialogState extends ConsumerState<CloseCashDialog> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Text('(+) Ventas en Efectivo (Turno):', style: TextStyle(fontSize: 12, color: Colors.greenAccent)),
+                              const Text('(+) Ventas Mostrador (Efectivo):', style: TextStyle(fontSize: 12, color: Colors.greenAccent)),
                               Text('+ ${_currency.format(cashSales)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.greenAccent)),
                             ],
                           ),
+                          if (cashPayments > 0) ...[
+                            const SizedBox(height: 6),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text('(+) Cobros de Membresías (Efectivo):', style: TextStyle(fontSize: 12, color: Colors.tealAccent)),
+                                Text('+ ${_currency.format(cashPayments)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.tealAccent)),
+                              ],
+                            ),
+                          ],
                           if (withdrawals > 0) ...[
                             const SizedBox(height: 6),
                             Row(
@@ -336,13 +346,13 @@ class _CloseCashDialogState extends ConsumerState<CloseCashDialog> {
                               ],
                             ),
                           ],
-                          if (otherSales > 0) ...[
+                          if (otherSales + otherPayments > 0) ...[
                             const SizedBox(height: 6),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                const Text('ℹ Tarjetas / Transferencias (no van a gaveta):', style: TextStyle(fontSize: 11, color: Colors.white38)),
-                                Text(_currency.format(otherSales), style: const TextStyle(fontSize: 11, color: Colors.white38)),
+                                const Text('ℹ Tarjetas / Transf. (no van a gaveta):', style: TextStyle(fontSize: 11, color: Colors.white38)),
+                                Text(_currency.format(otherSales + otherPayments), style: const TextStyle(fontSize: 11, color: Colors.white38)),
                               ],
                             ),
                           ],

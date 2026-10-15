@@ -8,6 +8,7 @@ import '../dialogs/cash_withdrawal_dialog.dart';
 import '../dialogs/close_cash_dialog.dart';
 import '../dialogs/open_cash_dialog.dart';
 import '../models/sale_history_model.dart';
+import '../models/shift_payment_model.dart';
 import '../providers/cash_register_provider.dart';
 
 class CashRegisterScreen extends ConsumerStatefulWidget {
@@ -24,8 +25,10 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
 
   late TabController _tabController;
   final TextEditingController _salesSearchCtrl = TextEditingController();
+  final TextEditingController _paymentsSearchCtrl = TextEditingController();
 
   final Map<String, List<SaleHistoryModel>> _historyShiftSales = {};
+  final Map<String, List<ShiftPaymentModel>> _historyShiftPayments = {};
   final Set<String> _loadingShiftIds = {};
   final Set<String> _expandedShiftIds = {};
 
@@ -38,13 +41,18 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
       }
     });
 
-    if (_expandedShiftIds.contains(registerId) && !_historyShiftSales.containsKey(registerId)) {
+    if (_expandedShiftIds.contains(registerId) && (!_historyShiftSales.containsKey(registerId) || !_historyShiftPayments.containsKey(registerId))) {
       setState(() => _loadingShiftIds.add(registerId));
       try {
-        final sales = await ref.read(cashRegisterServiceProvider).getSales(cashRegisterId: registerId, limit: 100);
+        final service = ref.read(cashRegisterServiceProvider);
+        final results = await Future.wait([
+          service.getSales(cashRegisterId: registerId, limit: 100),
+          service.getPayments(registerId),
+        ]);
         if (mounted) {
           setState(() {
-            _historyShiftSales[registerId] = sales;
+            _historyShiftSales[registerId] = results[0] as List<SaleHistoryModel>;
+            _historyShiftPayments[registerId] = results[1] as List<ShiftPaymentModel>;
             _loadingShiftIds.remove(registerId);
           });
         }
@@ -59,13 +67,14 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     _salesSearchCtrl.dispose();
+    _paymentsSearchCtrl.dispose();
     super.dispose();
   }
 
@@ -552,7 +561,7 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
             const SizedBox(height: 14),
           ],
 
-          // Tab Bar de Ventas y Cierres
+          // Tab Bar de Ventas, Membresías y Cierres
           Container(
             decoration: BoxDecoration(
               color: AppTheme.darkSurface,
@@ -569,12 +578,18 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
                 Tab(
                   icon: const Icon(Icons.point_of_sale, size: 18),
                   text: state.isRegisterOpen
-                      ? 'Ventas del Turno (${state.sales.length})'
-                      : 'Ventas del Turno (0)',
+                      ? 'Ventas Mostrador (${state.sales.length})'
+                      : 'Ventas Mostrador (0)',
+                ),
+                Tab(
+                  icon: const Icon(Icons.card_membership, size: 18),
+                  text: state.isRegisterOpen
+                      ? 'Cobros Membresías (${state.payments.length})'
+                      : 'Cobros Membresías (0)',
                 ),
                 Tab(
                   icon: const Icon(Icons.history, size: 18),
-                  text: 'Historial de Cierres de Turno (${state.history.length})',
+                  text: 'Historial de Cierres (${state.history.length})',
                 ),
               ],
             ),
@@ -588,6 +603,7 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
               controller: _tabController,
               children: [
                 _buildSalesHistoryTab(state),
+                _buildPaymentsHistoryTab(state),
                 _buildClosuresHistoryTab(state),
               ],
             ),
@@ -863,7 +879,231 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
     );
   }
 
-  // ================= TAB 2: HISTORIAL DE CIERRES =================
+  // ================= TAB 2: HISTORIAL DE COBROS DE MEMBRESÍAS DEL TURNO =================
+  Widget _buildPaymentsHistoryTab(CashRegisterState state) {
+    if (!state.isRegisterOpen) {
+      return Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        ),
+        padding: const EdgeInsets.all(32),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.04),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.lock_outline, size: 48, color: Colors.white38),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'No hay un turno de caja abierto',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Esta sección solo muestra los cobros de membresías del turno activo actual.\nPara consultar turnos anteriores, diríjase a la pestaña "Historial de Cierres".',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: Colors.white54, height: 1.4),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.lock_open, size: 18),
+                label: const Text('Iniciar Turno / Abrir Caja'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.success,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+                ),
+                onPressed: _openOpenDialog,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final query = _paymentsSearchCtrl.text.trim().toLowerCase();
+    final filteredPayments = state.payments.where((p) {
+      if (query.isEmpty) return true;
+      final matchMember = p.memberName.toLowerCase().contains(query);
+      final matchCode = p.memberCode.toLowerCase().contains(query);
+      final matchPlan = p.planName.toLowerCase().contains(query);
+      final matchId = p.id.toLowerCase().contains(query);
+      return matchMember || matchCode || matchPlan || matchId;
+    }).toList();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          // Barra de Búsqueda y Estadísticas de Membresías
+          Row(
+            children: [
+              Expanded(
+                flex: 4,
+                child: TextField(
+                  controller: _paymentsSearchCtrl,
+                  decoration: InputDecoration(
+                    hintText: 'Buscar por socio, código de socio, plan...',
+                    prefixIcon: const Icon(Icons.search, size: 18),
+                    suffixIcon: _paymentsSearchCtrl.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, size: 16),
+                            onPressed: () {
+                              _paymentsSearchCtrl.clear();
+                              setState(() {});
+                            },
+                          )
+                        : null,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    fillColor: AppTheme.darkSurface,
+                    filled: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppTheme.darkBorder)),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppTheme.darkBorder)),
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.cyanAccent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.cyanAccent.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.card_membership, size: 18, color: Colors.cyanAccent),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Total Membresías: ${_currency.format(state.totalPaymentsAmount)}',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.cyanAccent),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      '(Efectivo: ${_currency.format(state.cashPaymentsAmount)})',
+                      style: const TextStyle(fontSize: 12, color: Colors.white70),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          Expanded(
+            child: filteredPayments.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.card_membership_outlined, size: 48, color: Colors.white24),
+                        const SizedBox(height: 10),
+                        Text(
+                          query.isEmpty
+                              ? 'No se han registrado cobros de membresías en este turno'
+                              : 'No se encontraron cobros para "$query"',
+                          style: const TextStyle(color: Colors.white54),
+                        ),
+                      ],
+                    ),
+                  )
+                : SingleChildScrollView(
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: DataTable(
+                        headingRowHeight: 42,
+                        dataRowMinHeight: 48,
+                        dataRowMaxHeight: 52,
+                        horizontalMargin: 16,
+                        columnSpacing: 20,
+                        columns: const [
+                          DataColumn(label: Text('Recibo', style: TextStyle(fontWeight: FontWeight.bold))),
+                          DataColumn(label: Text('Hora', style: TextStyle(fontWeight: FontWeight.bold))),
+                          DataColumn(label: Text('Socio', style: TextStyle(fontWeight: FontWeight.bold))),
+                          DataColumn(label: Text('Plan / Concepto', style: TextStyle(fontWeight: FontWeight.bold))),
+                          DataColumn(label: Text('Método', style: TextStyle(fontWeight: FontWeight.bold))),
+                          DataColumn(label: Text('Total', style: TextStyle(fontWeight: FontWeight.bold))),
+                          DataColumn(label: Text('Estado', style: TextStyle(fontWeight: FontWeight.bold))),
+                        ],
+                        rows: filteredPayments.map((p) {
+                          return DataRow(
+                            cells: [
+                              DataCell(
+                                Text(
+                                  '#${p.shortId}',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                                ),
+                              ),
+                              DataCell(Text(_timeFormat.format(p.paymentDate ?? p.createdAt), style: const TextStyle(fontSize: 12))),
+                              DataCell(
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(p.memberName, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                                    if (p.memberCode.isNotEmpty)
+                                      Text(p.memberCode, style: const TextStyle(fontSize: 11, color: Colors.white54)),
+                                  ],
+                                ),
+                              ),
+                              DataCell(
+                                Text(
+                                  p.planName.isNotEmpty ? p.planName : (p.notes ?? 'Membresía'),
+                                  style: const TextStyle(fontSize: 12, color: Colors.white70),
+                                ),
+                              ),
+                              DataCell(_buildPaymentMethodBadge(p.paymentMethod)),
+                              DataCell(
+                                Text(
+                                  _currency.format(p.amount),
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.greenAccent),
+                                ),
+                              ),
+                              DataCell(
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: const Text(
+                                    'COMPLETADO',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.greenAccent,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ================= TAB 3: HISTORIAL DE CIERRES =================
   Widget _buildClosuresHistoryTab(CashRegisterState state) {
     if (state.history.isEmpty) {
       return Container(
@@ -894,6 +1134,7 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
         final isExpanded = _expandedShiftIds.contains(reg.id);
         final isLoading = _loadingShiftIds.contains(reg.id);
         final shiftSales = _historyShiftSales[reg.id] ?? [];
+        final shiftPayments = _historyShiftPayments[reg.id] ?? [];
         final diff = reg.difference ?? 0.0;
         final isBalanced = diff.abs() < 0.01;
 
@@ -1031,7 +1272,7 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              isExpanded ? 'Ocultar Ventas' : 'Ver Ventas',
+                              isExpanded ? 'Ocultar Detalles' : 'Ver Detalles',
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
@@ -1052,7 +1293,7 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
                 ),
               ),
 
-              // Lista Desplegable / Contraíble de Ventas del Turno
+              // Lista Desplegable / Contraíble de Ventas y Membresías del Turno
               if (isExpanded) ...[
                 const Divider(height: 1, color: Colors.white10),
                 Container(
@@ -1068,12 +1309,12 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
                               children: [
                                 SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
                                 SizedBox(width: 12),
-                                Text('Cargando ventas de este turno...', style: TextStyle(color: Colors.white54, fontSize: 13)),
+                                Text('Cargando registros de este turno...', style: TextStyle(color: Colors.white54, fontSize: 13)),
                               ],
                             ),
                           ),
                         )
-                      : shiftSales.isEmpty
+                      : (shiftSales.isEmpty && shiftPayments.isEmpty)
                           ? const Padding(
                               padding: EdgeInsets.symmetric(vertical: 20),
                               child: Center(
@@ -1082,7 +1323,7 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
                                   children: [
                                     Icon(Icons.info_outline, size: 18, color: Colors.white38),
                                     SizedBox(width: 8),
-                                    Text('No se realizaron ventas durante este turno de caja.', style: TextStyle(color: Colors.white54, fontSize: 13)),
+                                    Text('No se realizaron ventas ni cobros de membresías durante este turno de caja.', style: TextStyle(color: Colors.white54, fontSize: 13)),
                                   ],
                                 ),
                               ),
@@ -1090,122 +1331,221 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
                           : Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        const Icon(Icons.receipt_long, size: 16, color: AppTheme.primary),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          'Ventas realizadas en este turno (${shiftSales.length})',
-                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
-                                        ),
-                                      ],
-                                    ),
-                                    Text(
-                                      'Total Cobrado: ${_currency.format(shiftSales.where((s) => s.status != 'cancelled').fold(0.0, (sum, s) => sum + s.totalAmount))}',
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.greenAccent),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 10),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: DataTable(
-                                    headingRowHeight: 36,
-                                    dataRowMinHeight: 44,
-                                    dataRowMaxHeight: 48,
-                                    horizontalMargin: 12,
-                                    columnSpacing: 16,
-                                    columns: const [
-                                      DataColumn(label: Text('Ticket', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                                      DataColumn(label: Text('Hora', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                                      DataColumn(label: Text('Cliente', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                                      DataColumn(label: Text('Artículos Comprados', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                                      DataColumn(label: Text('Método', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                                      DataColumn(label: Text('Total', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                                      DataColumn(label: Text('Estado', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                                      DataColumn(label: Text('Acciones', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                                    ],
-                                    rows: shiftSales.map((sale) {
-                                      final isCancelled = sale.status == 'cancelled';
-                                      final itemsSummary = sale.items.isNotEmpty
-                                          ? sale.items.map((i) => '${i.quantity}x ${i.productName}').join(', ')
-                                          : 'Sin desglose';
-
-                                      return DataRow(
-                                        cells: [
-                                          DataCell(
-                                            Text(
-                                              '#${sale.shortId}',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 12,
-                                                decoration: isCancelled ? TextDecoration.lineThrough : null,
-                                              ),
-                                            ),
-                                          ),
-                                          DataCell(Text(_timeFormat.format(sale.createdAt), style: const TextStyle(fontSize: 12))),
-                                          DataCell(Text(sale.customerName, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12))),
-                                          DataCell(
-                                            ConstrainedBox(
-                                              constraints: const BoxConstraints(maxWidth: 220),
-                                              child: Text(itemsSummary, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, color: Colors.white70)),
-                                            ),
-                                          ),
-                                          DataCell(_buildPaymentMethodBadge(sale.paymentMethod)),
-                                          DataCell(
-                                            Text(
-                                              _currency.format(sale.totalAmount),
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 12,
-                                                color: isCancelled ? Colors.redAccent.withValues(alpha: 0.6) : Colors.greenAccent,
-                                                decoration: isCancelled ? TextDecoration.lineThrough : null,
-                                              ),
-                                            ),
-                                          ),
-                                          DataCell(
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                              decoration: BoxDecoration(
-                                                color: isCancelled ? Colors.red.withValues(alpha: 0.15) : Colors.green.withValues(alpha: 0.15),
-                                                borderRadius: BorderRadius.circular(4),
-                                              ),
-                                              child: Text(
-                                                isCancelled ? 'ANULADA' : 'COMPLETADA',
-                                                style: TextStyle(
-                                                  fontSize: 9,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: isCancelled ? Colors.redAccent : Colors.greenAccent,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                          DataCell(
-                                            Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                IconButton(
-                                                  icon: const Icon(Icons.visibility_outlined, size: 16),
-                                                  tooltip: 'Ver Detalle',
-                                                  onPressed: () => _showSaleDetailDialog(sale),
-                                                ),
-                                                if (!isCancelled)
-                                                  IconButton(
-                                                    icon: const Icon(Icons.print, size: 16, color: Colors.blueAccent),
-                                                    tooltip: 'Reimprimir Ticket',
-                                                    onPressed: () => _reprintSaleReceipt(sale),
-                                                  ),
-                                              ],
-                                            ),
+                                if (shiftSales.isNotEmpty) ...[
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          const Icon(Icons.receipt_long, size: 16, color: AppTheme.primary),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'Ventas mostrador en este turno (${shiftSales.length})',
+                                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
                                           ),
                                         ],
-                                      );
-                                    }).toList(),
+                                      ),
+                                      Text(
+                                        'Subtotal Ventas: ${_currency.format(shiftSales.where((s) => s.status != 'cancelled').fold(0.0, (sum, s) => sum + s.totalAmount))}',
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.greenAccent),
+                                      ),
+                                    ],
                                   ),
-                                ),
+                                  const SizedBox(height: 10),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: DataTable(
+                                      headingRowHeight: 36,
+                                      dataRowMinHeight: 44,
+                                      dataRowMaxHeight: 48,
+                                      horizontalMargin: 12,
+                                      columnSpacing: 16,
+                                      columns: const [
+                                        DataColumn(label: Text('Ticket', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                                        DataColumn(label: Text('Hora', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                                        DataColumn(label: Text('Cliente', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                                        DataColumn(label: Text('Artículos Comprados', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                                        DataColumn(label: Text('Método', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                                        DataColumn(label: Text('Total', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                                        DataColumn(label: Text('Estado', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                                        DataColumn(label: Text('Acciones', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                                      ],
+                                      rows: shiftSales.map((sale) {
+                                        final isCancelled = sale.status == 'cancelled';
+                                        final itemsSummary = sale.items.isNotEmpty
+                                            ? sale.items.map((i) => '${i.quantity}x ${i.productName}').join(', ')
+                                            : 'Sin desglose';
+
+                                        return DataRow(
+                                          cells: [
+                                            DataCell(
+                                              Text(
+                                                '#${sale.shortId}',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 12,
+                                                  decoration: isCancelled ? TextDecoration.lineThrough : null,
+                                                ),
+                                              ),
+                                            ),
+                                            DataCell(Text(_timeFormat.format(sale.createdAt), style: const TextStyle(fontSize: 12))),
+                                            DataCell(Text(sale.customerName, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12))),
+                                            DataCell(
+                                              ConstrainedBox(
+                                                constraints: const BoxConstraints(maxWidth: 220),
+                                                child: Text(itemsSummary, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, color: Colors.white70)),
+                                              ),
+                                            ),
+                                            DataCell(_buildPaymentMethodBadge(sale.paymentMethod)),
+                                            DataCell(
+                                              Text(
+                                                _currency.format(sale.totalAmount),
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 12,
+                                                  color: isCancelled ? Colors.redAccent.withValues(alpha: 0.6) : Colors.greenAccent,
+                                                  decoration: isCancelled ? TextDecoration.lineThrough : null,
+                                                ),
+                                              ),
+                                            ),
+                                            DataCell(
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: isCancelled ? Colors.red.withValues(alpha: 0.15) : Colors.green.withValues(alpha: 0.15),
+                                                  borderRadius: BorderRadius.circular(4),
+                                                ),
+                                                child: Text(
+                                                  isCancelled ? 'ANULADA' : 'COMPLETADA',
+                                                  style: TextStyle(
+                                                    fontSize: 9,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: isCancelled ? Colors.redAccent : Colors.greenAccent,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                            DataCell(
+                                              Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  IconButton(
+                                                    icon: const Icon(Icons.visibility_outlined, size: 16),
+                                                    tooltip: 'Ver Detalle',
+                                                    onPressed: () => _showSaleDetailDialog(sale),
+                                                  ),
+                                                  if (!isCancelled)
+                                                    IconButton(
+                                                      icon: const Icon(Icons.print, size: 16, color: Colors.blueAccent),
+                                                      tooltip: 'Reimprimir Ticket',
+                                                      onPressed: () => _reprintSaleReceipt(sale),
+                                                    ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        );
+                                      }).toList(),
+                                    ),
+                                  ),
+                                ],
+
+                                if (shiftSales.isNotEmpty && shiftPayments.isNotEmpty)
+                                  const Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 16),
+                                    child: Divider(color: Colors.white12),
+                                  ),
+
+                                if (shiftPayments.isNotEmpty) ...[
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Row(
+                                        children: [
+                                          Icon(Icons.card_membership, size: 16, color: Colors.cyanAccent),
+                                          SizedBox(width: 8),
+                                          Text(
+                                            'Cobros de membresías en este turno',
+                                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
+                                          ),
+                                        ],
+                                      ),
+                                      Text(
+                                        'Subtotal Membresías: ${_currency.format(shiftPayments.fold(0.0, (sum, p) => sum + p.amount))}',
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.cyanAccent),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 10),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: DataTable(
+                                      headingRowHeight: 36,
+                                      dataRowMinHeight: 44,
+                                      dataRowMaxHeight: 48,
+                                      horizontalMargin: 12,
+                                      columnSpacing: 16,
+                                      columns: const [
+                                        DataColumn(label: Text('Recibo', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                                        DataColumn(label: Text('Hora', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                                        DataColumn(label: Text('Socio', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                                        DataColumn(label: Text('Plan / Concepto', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                                        DataColumn(label: Text('Método', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                                        DataColumn(label: Text('Total', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                                        DataColumn(label: Text('Estado', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                                      ],
+                                      rows: shiftPayments.map((p) {
+                                        return DataRow(
+                                          cells: [
+                                            DataCell(Text('#${p.shortId}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                                            DataCell(Text(_timeFormat.format(p.paymentDate ?? p.createdAt), style: const TextStyle(fontSize: 12))),
+                                            DataCell(
+                                              Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                mainAxisAlignment: MainAxisAlignment.center,
+                                                children: [
+                                                  Text(p.memberName, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+                                                  if (p.memberCode.isNotEmpty)
+                                                    Text(p.memberCode, style: const TextStyle(fontSize: 10, color: Colors.white54)),
+                                                ],
+                                              ),
+                                            ),
+                                            DataCell(
+                                              Text(
+                                                p.planName.isNotEmpty ? p.planName : (p.notes ?? 'Membresía'),
+                                                style: const TextStyle(fontSize: 12, color: Colors.white70),
+                                              ),
+                                            ),
+                                            DataCell(_buildPaymentMethodBadge(p.paymentMethod)),
+                                            DataCell(
+                                              Text(
+                                                _currency.format(p.amount),
+                                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.greenAccent),
+                                              ),
+                                            ),
+                                            DataCell(
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.green.withValues(alpha: 0.15),
+                                                  borderRadius: BorderRadius.circular(4),
+                                                ),
+                                                child: const Text(
+                                                  'COMPLETADO',
+                                                  style: TextStyle(
+                                                    fontSize: 9,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors.greenAccent,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        );
+                                      }).toList(),
+                                    ),
+                                  ),
+                                ],
                               ],
                             ),
                 ),
@@ -1373,27 +1713,62 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
                     ],
                   ),
                   const SizedBox(height: 8),
-                  Row(
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 16,
+                    runSpacing: 4,
                     children: [
-                      const Text('Fondo Inicial: ', style: TextStyle(fontSize: 14, color: Colors.white60)),
-                      Text(
-                        _currency.format(reg.openingAmount),
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('Fondo Inicial: ', style: TextStyle(fontSize: 13, color: Colors.white60)),
+                          Text(
+                            _currency.format(reg.openingAmount),
+                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 20),
-                      const Text('Ventas Turno: ', style: TextStyle(fontSize: 13, color: Colors.white60)),
-                      Text(
-                        _currency.format(state.totalSalesAmount),
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.greenAccent),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('Ventas Mostrador: ', style: TextStyle(fontSize: 13, color: Colors.white60)),
+                          Text(
+                            _currency.format(state.totalSalesAmount),
+                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.greenAccent),
+                          ),
+                        ],
                       ),
-                      if (state.totalWithdrawals > 0) ...[
-                        const SizedBox(width: 20),
-                        const Text('Egresos: ', style: TextStyle(fontSize: 13, color: Colors.white60)),
-                        Text(
-                          '-${_currency.format(state.totalWithdrawals)}',
-                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.orangeAccent),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('Membresías: ', style: TextStyle(fontSize: 13, color: Colors.white60)),
+                          Text(
+                            _currency.format(state.totalPaymentsAmount),
+                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.cyanAccent),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('Total Cobrado: ', style: TextStyle(fontSize: 13, color: Colors.white60)),
+                          Text(
+                            _currency.format(state.totalShiftRevenue),
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.greenAccent),
+                          ),
+                        ],
+                      ),
+                      if (state.totalWithdrawals > 0)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text('Egresos: ', style: TextStyle(fontSize: 13, color: Colors.white60)),
+                            Text(
+                              '-${_currency.format(state.totalWithdrawals)}',
+                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.orangeAccent),
+                            ),
+                          ],
                         ),
-                      ],
                     ],
                   ),
                 ],

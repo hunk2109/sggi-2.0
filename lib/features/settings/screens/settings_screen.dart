@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -41,12 +43,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
   final _testPhoneCtrl = TextEditingController();
   final _testMessageCtrl = TextEditingController(text: '¡Hola! Este es un mensaje de prueba desde SGGI 2.0.');
 
-  // Access MDB settings
+  // Biométrico & BD Access settings
   final _accessDbPathCtrl = TextEditingController();
+  final _machineIpCtrl = TextEditingController();
+  final _machinePortCtrl = TextEditingController(text: '4370');
   bool _isLoadingAccessPath = false;
   bool _isSavingAccessPath = false;
   bool _isTestingAccessConn = false;
+  bool _isUpdatingMachineIp = false;
+  bool _isTestingMachineConn = false;
+  bool _isMigratingToDatabase = false;
   Map<String, dynamic>? _accessTestResult;
+  Map<String, dynamic>? _machineTestResult;
+  Map<String, dynamic>? _migrationResult;
 
   // Cupones y promociones
   final _couponSearchCtrl = TextEditingController();
@@ -65,10 +74,54 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
     final service = ref.read(settingsServiceProvider);
     final path = await service.getAccessDbPath();
     if (mounted) {
-      if (path != null && path.isNotEmpty) {
+      if (path != null && path.isNotEmpty && !path.startsWith('/api/')) {
         _accessDbPathCtrl.text = path;
       }
       setState(() => _isLoadingAccessPath = false);
+    }
+  }
+
+  Future<void> _pickAccessDbFile() async {
+    String? selectedPath;
+    try {
+      final files = await FilePicker.pickFiles(
+        dialogTitle: 'Seleccionar Base de Datos Access (.mdb / .accdb)',
+        type: FileType.custom,
+        allowedExtensions: ['mdb', 'accdb'],
+      );
+      if (files.isNotEmpty && files.first.path != null) {
+        selectedPath = files.first.path;
+      }
+    } catch (_) {
+      // Fallback nativo de Windows vía PowerShell si FilePicker no abre
+      if (Platform.isWindows) {
+        try {
+          final res = await Process.run('powershell', [
+            '-NoProfile',
+            '-Command',
+            r'''
+Add-Type -AssemblyName System.Windows.Forms
+$f = New-Object System.Windows.Forms.OpenFileDialog
+$f.Filter = "Base de datos Access (*.mdb;*.accdb)|*.mdb;*.accdb|Todos los archivos (*.*)|*.*"
+$f.Title = "Seleccionar Base de Datos Access (ZKAccess)"
+if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+  Write-Host $f.FileName
+}
+''',
+          ]);
+          final out = res.stdout.toString().trim();
+          if (out.isNotEmpty && (out.toLowerCase().endsWith('.mdb') || out.toLowerCase().endsWith('.accdb'))) {
+            selectedPath = out;
+          }
+        } catch (_) {}
+      }
+    }
+
+    if (selectedPath != null && selectedPath.isNotEmpty && mounted) {
+      setState(() {
+        _accessDbPathCtrl.text = selectedPath!;
+      });
+      await _saveAccessDbPath();
     }
   }
 
@@ -108,6 +161,150 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
     setState(() {
       _isTestingAccessConn = false;
       _accessTestResult = res;
+      if (res['machines'] is List && (res['machines'] as List).isNotEmpty) {
+        final m = res['machines'][0];
+        if (m['ip'] != null && _machineIpCtrl.text.isEmpty) {
+          _machineIpCtrl.text = m['ip'].toString();
+        }
+        if (m['port'] != null && _machinePortCtrl.text.isEmpty) {
+          _machinePortCtrl.text = m['port'].toString();
+        }
+      }
+    });
+  }
+
+  Future<void> _startDatabaseMigration() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E232B),
+        title: const Row(
+          children: [
+            Icon(Icons.cloud_sync, color: AppTheme.primary),
+            SizedBox(width: 10),
+            Text('Confirmar Migración'),
+          ],
+        ),
+        content: const Text(
+          'Esta acción importará todos los socios (USERINFO), membresías activas, historial de asistencias y productos desde el archivo Access hacia la base de datos MySQL del SGGI.\n\n¿Deseas iniciar la migración ahora?',
+          style: TextStyle(fontSize: 13, color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
+            icon: const Icon(Icons.play_arrow, size: 18),
+            label: const Text('Iniciar Migración'),
+            onPressed: () => Navigator.pop(ctx, true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() {
+      _isMigratingToDatabase = true;
+      _migrationResult = null;
+    });
+
+    final service = ref.read(settingsServiceProvider);
+    final res = await service.performMigrationToDatabase();
+
+    if (!mounted) return;
+    setState(() {
+      _isMigratingToDatabase = false;
+      _migrationResult = res;
+    });
+
+    if (res['success'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('¡Migración completada exitosamente!'),
+          backgroundColor: AppTheme.success,
+        ),
+      );
+      _testAccessConnection();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(res['error'] ?? 'Error durante la migración'),
+          backgroundColor: AppTheme.error,
+        ),
+      );
+    }
+  }
+
+  Future<void> _saveAndTestMachineIp() async {
+    final ip = _machineIpCtrl.text.trim();
+    final portStr = _machinePortCtrl.text.trim();
+    final port = int.tryParse(portStr) ?? 4370;
+
+    if (ip.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Por favor ingresa la IP del equipo biométrico'), backgroundColor: AppTheme.warning),
+      );
+      return;
+    }
+
+    setState(() {
+      _isUpdatingMachineIp = true;
+      _machineTestResult = null;
+    });
+
+    final service = ref.read(settingsServiceProvider);
+    final res = await service.updateMachineIp(ip: ip, port: port);
+
+    if (!mounted) return;
+    setState(() {
+      _isUpdatingMachineIp = false;
+      _machineTestResult = res;
+    });
+
+    if (res['success'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(res['message'] ?? 'IP guardada'),
+          backgroundColor: res['reachable'] == true ? AppTheme.success : AppTheme.warning,
+        ),
+      );
+      _testAccessConnection();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(res['error'] ?? 'Error al actualizar IP'),
+          backgroundColor: AppTheme.error,
+        ),
+      );
+    }
+  }
+
+  Future<void> _testOnlyMachineIp() async {
+    final ip = _machineIpCtrl.text.trim();
+    final port = int.tryParse(_machinePortCtrl.text.trim()) ?? 4370;
+
+    if (ip.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Por favor ingresa la IP a probar'), backgroundColor: AppTheme.warning),
+      );
+      return;
+    }
+
+    setState(() {
+      _isTestingMachineConn = true;
+      _machineTestResult = null;
+    });
+
+    final service = ref.read(settingsServiceProvider);
+    final res = await service.testMachineConnection(ip: ip, port: port);
+
+    if (!mounted) return;
+    setState(() {
+      _isTestingMachineConn = false;
+      _machineTestResult = res;
     });
   }
 
@@ -129,6 +326,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
     _testPhoneCtrl.dispose();
     _testMessageCtrl.dispose();
     _accessDbPathCtrl.dispose();
+    _machineIpCtrl.dispose();
+    _machinePortCtrl.dispose();
     _couponSearchCtrl.dispose();
     super.dispose();
   }
@@ -985,19 +1184,31 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
                 Expanded(
                   child: TextField(
                     controller: _accessDbPathCtrl,
+                    readOnly: true,
+                    onTap: _pickAccessDbFile,
                     decoration: InputDecoration(
-                      hintText: r'C:\Users\...\Downloads\dowtown.mdb o C:\develop\gym-backend\dowtown.mdb',
+                      hintText: r'Presiona aquí para seleccionar el archivo .mdb de ZKAccess...',
                       prefixIcon: const Icon(Icons.storage_outlined, size: 18),
                       suffixIcon: _isLoadingAccessPath
                           ? const Padding(
                               padding: EdgeInsets.all(12),
                               child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
                             )
-                          : null,
+                          : IconButton(
+                              icon: const Icon(Icons.folder_open, color: AppTheme.primary, size: 20),
+                              tooltip: 'Seleccionar archivo Access (.mdb)',
+                              onPressed: _pickAccessDbFile,
+                            ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.folder_open, size: 18),
+                  label: const Text('Examinar...'),
+                  onPressed: _pickAccessDbFile,
+                ),
+                const SizedBox(width: 10),
                 ElevatedButton.icon(
                   icon: _isSavingAccessPath
                       ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
@@ -1113,6 +1324,270 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
                 ),
               ),
             ],
+
+            const SizedBox(height: 24),
+
+            // ================= 1. CONFIGURACIÓN IP DEL EQUIPO =================
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1B2028),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primary.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.router_outlined, color: AppTheme.primary, size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Configuración de IP del Equipo (Torniquete / Reloj)',
+                              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+                            ),
+                            Text(
+                              'Especifica o modifica la dirección IP y puerto de red del equipo biométrico ZKTeco para comunicación TCP directa.',
+                              style: TextStyle(fontSize: 11, color: Colors.white54),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 28),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 250,
+                        child: TextField(
+                          controller: _machineIpCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Dirección IP del Equipo *',
+                            hintText: 'Ej. 192.168.1.201',
+                            prefixIcon: Icon(Icons.settings_ethernet, size: 18),
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                      SizedBox(
+                        width: 130,
+                        child: TextField(
+                          controller: _machinePortCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Puerto TCP',
+                            hintText: '4370',
+                            prefixIcon: Icon(Icons.numbers, size: 18),
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        ),
+                        icon: _isUpdatingMachineIp
+                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : const Icon(Icons.save_outlined, size: 18),
+                        label: const Text('Guardar y Probar IP'),
+                        onPressed: _isUpdatingMachineIp ? null : _saveAndTestMachineIp,
+                      ),
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        ),
+                        icon: _isTestingMachineConn
+                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : const Icon(Icons.network_check_outlined, size: 18),
+                        label: const Text('Probar Conexión'),
+                        onPressed: _isTestingMachineConn ? null : _testOnlyMachineIp,
+                      ),
+                    ],
+                  ),
+                  if (_machineTestResult != null) ...[
+                    const SizedBox(height: 14),
+                    Builder(builder: (context) {
+                      final isReachable = _machineTestResult!['reachable'] == true || _machineTestResult!['success'] == true;
+                      final latency = _machineTestResult!['latencyMs'];
+                      final message = _machineTestResult!['message'] ?? (isReachable ? 'Equipo respondiendo' : 'No responde');
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: isReachable ? Colors.green.withValues(alpha: 0.1) : Colors.red.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: isReachable ? Colors.greenAccent.withValues(alpha: 0.3) : Colors.redAccent.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              isReachable ? Icons.check_circle : Icons.error_outline,
+                              color: isReachable ? Colors.greenAccent : Colors.redAccent,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                '$message${latency != null ? " (Latencia: ${latency}ms)" : ""}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: isReachable ? Colors.greenAccent : Colors.redAccent,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // ================= 2. MIGRACIÓN A LA BASE DE DATOS =================
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1B2028),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.amberAccent.withValues(alpha: 0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.amberAccent.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.cloud_sync_outlined, color: Colors.amberAccent, size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Migración de Datos a MySQL',
+                              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+                            ),
+                            Text(
+                              'Importa masivamente socios (USERINFO), membresías activas, historial de asistencias y catálogo de productos hacia la base de datos central.',
+                              style: TextStyle(fontSize: 11, color: Colors.white54),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 28),
+                  Row(
+                    children: [
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.amber[700],
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                        ),
+                        icon: _isMigratingToDatabase
+                            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : const Icon(Icons.play_arrow, size: 20),
+                        label: Text(
+                          _isMigratingToDatabase ? 'Migrando Base de Datos...' : 'Iniciar Migración a la Base de Datos',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        onPressed: _isMigratingToDatabase ? null : _startDatabaseMigration,
+                      ),
+                    ],
+                  ),
+                  if (_migrationResult != null) ...[
+                    const SizedBox(height: 16),
+                    Builder(builder: (context) {
+                      final success = _migrationResult!['success'] == true;
+                      final data = _migrationResult!['data'] is Map ? _migrationResult!['data'] as Map : null;
+                      final members = data?['members'];
+                      final memberships = data?['memberships'];
+                      final attendances = data?['attendances'];
+                      final products = data?['products'];
+
+                      return Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: success ? Colors.green.withValues(alpha: 0.08) : Colors.red.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: success ? Colors.greenAccent.withValues(alpha: 0.3) : Colors.redAccent.withValues(alpha: 0.3)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  success ? Icons.check_circle : Icons.error_outline,
+                                  color: success ? Colors.greenAccent : Colors.redAccent,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  success ? '¡Migración Completada con Éxito!' : 'Error durante la Migración',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: success ? Colors.greenAccent : Colors.redAccent,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (success && data != null) ...[
+                              const SizedBox(height: 12),
+                              Wrap(
+                                spacing: 12,
+                                runSpacing: 8,
+                                children: [
+                                  if (members != null)
+                                    _buildAccessStatChip('Socios', 'Insertados: ${members['inserted'] ?? 0}, Actualizados: ${members['updated'] ?? 0}', Colors.blueAccent),
+                                  if (memberships != null)
+                                    _buildAccessStatChip('Membresías', 'Creadas: ${memberships['inserted'] ?? 0}', Colors.greenAccent),
+                                  if (attendances != null)
+                                    _buildAccessStatChip('Asistencias', '${attendances['inserted'] ?? 0} registros', Colors.purpleAccent),
+                                  if (products != null)
+                                    _buildAccessStatChip('Productos', '${products['inserted'] ?? 0}', Colors.orangeAccent),
+                                ],
+                              ),
+                            ] else if (!success && _migrationResult!['error'] != null) ...[
+                              const SizedBox(height: 8),
+                              Text('Detalle del error: ${_migrationResult!['error']}', style: const TextStyle(fontSize: 12, color: Colors.redAccent)),
+                            ],
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
+                ],
+              ),
+            ),
           ],
         ),
       ),

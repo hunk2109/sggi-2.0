@@ -132,8 +132,16 @@ class SettingsService {
       final response = await _apiClient.dio.get(
         '${ApiConstants.sync}/access-path',
       );
-      if (response.data is Map && response.data['path'] != null) {
-        return response.data['path'].toString();
+      final data = response.data;
+      if (data is Map) {
+        if (data['data'] is Map && data['data']['path'] != null) {
+          final p = data['data']['path'].toString();
+          if (!p.startsWith('/api/')) return p;
+        }
+        if (data['path'] != null) {
+          final p = data['path'].toString();
+          if (!p.startsWith('/api/')) return p;
+        }
       }
       return null;
     } catch (_) {
@@ -147,7 +155,12 @@ class SettingsService {
         '${ApiConstants.sync}/access-path',
         data: {'path': path},
       );
-      return response.data['success'] == true;
+      if (response.data is Map) {
+        final d = response.data as Map;
+        if (d['success'] == true) return true;
+        if (d['data'] is Map && d['data']['success'] == true) return true;
+      }
+      return (response.statusCode ?? 500) < 300;
     } catch (_) {
       return false;
     }
@@ -159,7 +172,96 @@ class SettingsService {
         '${ApiConstants.sync}/access-dashboard',
       );
       if (response.data is Map) {
-        return Map<String, dynamic>.from(response.data as Map);
+        final d = response.data as Map;
+        if (d['data'] is Map) {
+          return Map<String, dynamic>.from(d['data'] as Map);
+        }
+        return Map<String, dynamic>.from(d);
+      }
+      return {'success': false};
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> performMigrationToDatabase() async {
+    try {
+      final response = await _apiClient.dio.post(
+        '${ApiConstants.sync}/initial',
+      );
+      if (response.data is Map) {
+        final d = response.data as Map;
+        if (d['data'] is Map) {
+          return Map<String, dynamic>.from(d['data'] as Map);
+        }
+        return Map<String, dynamic>.from(d);
+      }
+      return {'success': false, 'message': 'Respuesta no válida'};
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'error': e.response?.data?['message'] ?? e.message ?? 'Error durante la migración',
+      };
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> updateMachineIp({
+    required String ip,
+    int port = 4370,
+    int? machineId,
+  }) async {
+    try {
+      final payload = <String, dynamic>{
+        'ip': ip,
+        'port': port,
+      };
+      if (machineId != null) payload['machineId'] = machineId;
+
+      final response = await _apiClient.dio.put(
+        '${ApiConstants.sync}/machine-ip',
+        data: payload,
+      );
+      if (response.data is Map) {
+        final d = response.data as Map;
+        if (d['data'] is Map) {
+          return Map<String, dynamic>.from(d['data'] as Map);
+        }
+        return Map<String, dynamic>.from(d);
+      }
+      return {'success': false, 'message': 'Respuesta no válida'};
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'error': e.response?.data?['message'] ?? e.message ?? 'Error al actualizar IP del equipo',
+      };
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> testMachineConnection({
+    int? machineId,
+    String? ip,
+    int? port,
+  }) async {
+    try {
+      final payload = <String, dynamic>{};
+      if (machineId != null) payload['machineId'] = machineId;
+      if (ip != null) payload['ip'] = ip;
+      if (port != null) payload['port'] = port;
+
+      final response = await _apiClient.dio.post(
+        '${ApiConstants.sync}/access-machine/test',
+        data: payload,
+      );
+      if (response.data is Map) {
+        final d = response.data as Map;
+        if (d['data'] is Map) {
+          return Map<String, dynamic>.from(d['data'] as Map);
+        }
+        return Map<String, dynamic>.from(d);
       }
       return {'success': false};
     } catch (e) {

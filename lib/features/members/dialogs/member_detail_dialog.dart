@@ -8,6 +8,7 @@ import '../models/member_model.dart';
 import '../providers/members_provider.dart';
 import 'assign_membership_dialog.dart';
 import 'new_member_dialog.dart';
+import 'pay_fee_dialog.dart';
 
 class MemberDetailDialog extends ConsumerStatefulWidget {
   final MemberModel member;
@@ -680,76 +681,24 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
   }
 
   Future<void> _openPayDialog(String paymentId, double amount) async {
-    String selectedMethod = 'cash';
-    final confirmed = await showDialog<bool>(
+    final paid = await showDialog<bool>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: const Color(0xFF1E232B),
-          title: const Text('Cobrar Cuota Pendiente', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Monto a cobrar: ${_currencyFormat.format(amount)}',
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.greenAccent),
-              ),
-              const SizedBox(height: 16),
-              const Text('Método de Pago *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                initialValue: selectedMethod,
-                dropdownColor: const Color(0xFF252A34),
-                items: const [
-                  DropdownMenuItem(value: 'cash', child: Text('Efectivo')),
-                  DropdownMenuItem(value: 'card', child: Text('Tarjeta de Crédito / Débito')),
-                  DropdownMenuItem(value: 'transfer', child: Text('Transferencia Bancaria')),
-                ],
-                onChanged: (v) => setDialogState(() => selectedMethod = v ?? 'cash'),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.success),
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Confirmar Cobro'),
-            ),
-          ],
-        ),
+      barrierDismissible: false,
+      builder: (ctx) => PayFeeDialog(
+        member: _currentMember,
+        paymentId: paymentId,
+        initialAmount: amount,
+        concept: 'Cuota de Membresía',
+        onPaymentSuccess: () {
+          _loadAllHistory();
+          ref.read(membersProvider.notifier).loadMembers();
+        },
       ),
     );
 
-    if (confirmed == true) {
-      final s = ref.read(memberServiceProvider);
-      final ok = await s.payPayment(paymentId, paymentMethod: selectedMethod);
-      if (!mounted) return;
-      if (ok) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Pago de ${_currencyFormat.format(amount)} registrado exitosamente.'),
-            backgroundColor: AppTheme.success,
-            duration: const Duration(seconds: 7),
-            action: SnackBarAction(
-              label: 'IMPRIMIR RECIBO',
-              textColor: Colors.amberAccent,
-              onPressed: () => _printPaymentReceipt({
-                'id': paymentId,
-                'amount': amount,
-                'paymentMethod': selectedMethod,
-                'paymentDate': DateTime.now().toIso8601String(),
-              }),
-            ),
-          ),
-        );
-        _loadAllHistory();
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error al registrar el pago'), backgroundColor: AppTheme.error),
-        );
-      }
+    if (paid == true) {
+      _loadAllHistory();
+      ref.read(membersProvider.notifier).loadMembers();
     }
   }
 

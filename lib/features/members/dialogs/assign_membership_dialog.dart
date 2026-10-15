@@ -3,8 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../core/services/receipt_printing_service.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../memberships/models/promotion_model.dart';
-import '../../memberships/services/promotion_service.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../models/member_model.dart';
 import '../providers/members_provider.dart';
@@ -25,12 +23,6 @@ class _AssignMembershipDialogState extends ConsumerState<AssignMembershipDialog>
   bool _isLoading = false;
   int _startDateOption = 0; // 0: Desde vencimiento (si aplica) o desde hoy, 1: Desde hoy, 2: Personalizado
 
-  // Cupones y promociones
-  final _couponController = TextEditingController();
-  bool _isValidatingCoupon = false;
-  PromotionValidationResult? _couponResult;
-  String? _appliedPromoCode;
-
   bool get _hasActiveUnexpired =>
       widget.member.hasMembership &&
       widget.member.membershipEndDate != null &&
@@ -46,46 +38,6 @@ class _AssignMembershipDialogState extends ConsumerState<AssignMembershipDialog>
       _startDate = DateTime.now();
       _startDateOption = 1; // Desde hoy
     }
-  }
-
-  @override
-  void dispose() {
-    _couponController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _validateCoupon([String? explicitCode]) async {
-    final code = (explicitCode ?? _couponController.text).trim().toUpperCase();
-    if (code.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ingresa un código de cupón'), backgroundColor: AppTheme.warning),
-      );
-      return;
-    }
-
-    _couponController.text = code;
-    setState(() => _isValidatingCoupon = true);
-
-    final result = await ref.read(promotionServiceProvider).validatePromotion(code);
-    if (mounted) {
-      setState(() {
-        _isValidatingCoupon = false;
-        _couponResult = result;
-        if (result.valid) {
-          _appliedPromoCode = result.code ?? code;
-        } else {
-          _appliedPromoCode = null;
-        }
-      });
-    }
-  }
-
-  void _clearCoupon() {
-    setState(() {
-      _couponController.clear();
-      _couponResult = null;
-      _appliedPromoCode = null;
-    });
   }
 
   Future<void> _handleSubmit() async {
@@ -115,16 +67,12 @@ class _AssignMembershipDialogState extends ConsumerState<AssignMembershipDialog>
       startDate: DateFormat('yyyy-MM-dd').format(_startDate),
       endDate: DateFormat('yyyy-MM-dd').format(calculatedEnd),
       paymentMethod: _paymentMethod,
-      promotionCode: _appliedPromoCode,
     );
 
     if (mounted) {
       setState(() => _isLoading = false);
       if (result.success) {
         final isPending = _paymentMethod == 'pending';
-        final discountMsg = _appliedPromoCode != null && _couponResult != null && _couponResult!.valid
-            ? ' con ${_couponResult!.discount}% de descuento ($_appliedPromoCode)'
-            : '';
 
         final messenger = ScaffoldMessenger.of(context);
         final navigator = Navigator.of(context);
@@ -132,8 +80,6 @@ class _AssignMembershipDialogState extends ConsumerState<AssignMembershipDialog>
         if (!isPending) {
           final gymSettings = ref.read(gymSettingsProvider).settings;
           final originalPrice = selectedPlan?.price ?? 0;
-          final discountPercent = (_couponResult != null && _couponResult!.valid) ? _couponResult!.discount : 0;
-          final finalPrice = originalPrice * (1 - (discountPercent / 100));
 
           await showDialog(
             context: context,
@@ -148,7 +94,7 @@ class _AssignMembershipDialogState extends ConsumerState<AssignMembershipDialog>
                 ],
               ),
               content: Text(
-                'Cobro de RD\$ ${finalPrice.toStringAsFixed(2)} registrado correctamente.\n\n¿Deseas abrir el diálogo de impresión de Windows para emitir el comprobante del socio?',
+                'Cobro de RD\$ ${originalPrice.toStringAsFixed(2)} registrado correctamente.\n\n¿Deseas abrir el diálogo de impresión de Windows para emitir el comprobante del socio?',
                 style: const TextStyle(fontSize: 13, color: Colors.white70),
               ),
               actions: [
@@ -166,13 +112,10 @@ class _AssignMembershipDialogState extends ConsumerState<AssignMembershipDialog>
                       memberName: widget.member.fullName,
                       displayCode: widget.member.displayCode,
                       planName: selectedPlan?.name ?? 'Plan de Membresía',
-                      amountPaid: finalPrice.toDouble(),
+                      amountPaid: originalPrice.toDouble(),
                       paymentMethod: _paymentMethod,
                       startDate: _startDate,
                       endDate: calculatedEnd,
-                      promotionCode: _appliedPromoCode,
-                      discountPercentage: discountPercent > 0 ? discountPercent : null,
-                      originalPlanPrice: originalPrice > 0 ? originalPrice.toDouble() : null,
                       gymSettings: gymSettings,
                     );
                   },
@@ -214,8 +157,8 @@ class _AssignMembershipDialogState extends ConsumerState<AssignMembershipDialog>
                   Expanded(
                     child: Text(
                       isPending
-                          ? 'Membresía asignada$discountMsg. Factura pendiente generada para cobro.'
-                          : 'Membresía asignada$discountMsg y cobrada exitosamente.',
+                          ? 'Membresía asignada. Factura pendiente generada para cobro en caja.'
+                          : 'Membresía asignada y cobrada exitosamente.',
                     ),
                   ),
                 ],
@@ -236,15 +179,11 @@ class _AssignMembershipDialogState extends ConsumerState<AssignMembershipDialog>
   @override
   Widget build(BuildContext context) {
     final membershipsAsync = ref.watch(activeMembershipsProvider);
-    final promotionsAsync = ref.watch(activePromotionsProvider);
 
     final plans = membershipsAsync.value ?? [];
     final selectedPlan = plans.where((p) => p.id == _selectedPlanId).firstOrNull;
 
     num originalPrice = selectedPlan?.price ?? 0;
-    num discountPercent = (_couponResult != null && _couponResult!.valid) ? _couponResult!.discount : 0;
-    num discountAmount = (originalPrice * discountPercent) / 100;
-    num finalPrice = originalPrice - discountAmount;
 
     return Dialog(
       backgroundColor: Theme.of(context).cardColor,
@@ -430,132 +369,8 @@ class _AssignMembershipDialogState extends ConsumerState<AssignMembershipDialog>
 
               const SizedBox(height: 18),
 
-              // SECCIÓN CUPÓN O PROMOCIÓN (SOLO PAGOS DE MEMBRESÍA)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Cupón / Descuento Promocional', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                  if (_appliedPromoCode != null)
-                    TextButton.icon(
-                      style: TextButton.styleFrom(
-                        visualDensity: VisualDensity.compact,
-                        foregroundColor: Colors.redAccent,
-                        padding: EdgeInsets.zero,
-                      ),
-                      icon: const Icon(Icons.close, size: 14),
-                      label: const Text('Quitar cupón', style: TextStyle(fontSize: 11)),
-                      onPressed: _clearCoupon,
-                    ),
-                ],
-              ),
-              const SizedBox(height: 8),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _couponController,
-                      textCapitalization: TextCapitalization.characters,
-                      enabled: _appliedPromoCode == null,
-                      decoration: InputDecoration(
-                        hintText: 'Ej. PROMO10, VERANO20...',
-                        prefixIcon: const Icon(Icons.confirmation_number_outlined, size: 18),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                        suffixIcon: _isValidatingCoupon
-                            ? const Padding(
-                                padding: EdgeInsets.all(12),
-                                child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-                              )
-                            : null,
-                      ),
-                      onSubmitted: (_) => _validateCoupon(),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                      backgroundColor: _appliedPromoCode != null ? Colors.green.shade700 : AppTheme.primary,
-                    ),
-                    icon: Icon(_appliedPromoCode != null ? Icons.check : Icons.local_offer_outlined, size: 16),
-                    label: Text(_appliedPromoCode != null ? 'Aplicado' : 'Validar'),
-                    onPressed: _isValidatingCoupon || _appliedPromoCode != null ? null : () => _validateCoupon(),
-                  ),
-                ],
-              ),
-
-              // Sugerencias de cupones activos del gimnasio
-              promotionsAsync.when(
-                data: (promos) {
-                  if (promos.isEmpty || _appliedPromoCode != null) return const SizedBox.shrink();
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
-                      children: promos.map((p) {
-                        return ActionChip(
-                          avatar: const Icon(Icons.discount_outlined, size: 14, color: Colors.amberAccent),
-                          label: Text(
-                            '${p.code} (-${p.discountPercentage}%)',
-                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                          ),
-                          backgroundColor: const Color(0xFF1E232B),
-                          side: BorderSide(color: Colors.amberAccent.withValues(alpha: 0.3)),
-                          onPressed: () => _validateCoupon(p.code),
-                        );
-                      }).toList(),
-                    ),
-                  );
-                },
-                loading: () => const SizedBox.shrink(),
-                error: (_, _) => const SizedBox.shrink(),
-              ),
-
-              // Feedback de validación
-              if (_couponResult != null) ...[
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: _couponResult!.valid
-                        ? Colors.green.withValues(alpha: 0.1)
-                        : Colors.red.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: _couponResult!.valid
-                          ? Colors.green.withValues(alpha: 0.3)
-                          : Colors.red.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        _couponResult!.valid ? Icons.check_circle_outline : Icons.error_outline,
-                        size: 16,
-                        color: _couponResult!.valid ? Colors.greenAccent : Colors.redAccent,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _couponResult!.valid
-                              ? '¡Cupón "$_appliedPromoCode" válido! -${_couponResult!.discount}% de descuento aplicado a la cuota.'
-                              : _couponResult!.message,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: _couponResult!.valid ? Colors.greenAccent : Colors.redAccent,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-
-              // RESUMEN FINANCIERO DEL PAGO
+              // RESUMEN DEL COSTO DEL PLAN
               if (selectedPlan != null) ...[
-                const SizedBox(height: 16),
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
@@ -563,52 +378,18 @@ class _AssignMembershipDialogState extends ConsumerState<AssignMembershipDialog>
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
                   ),
-                  child: Column(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Precio original del plan:', style: TextStyle(fontSize: 12, color: Colors.white70)),
-                          Text(
-                            'RD\$ ${originalPrice.toStringAsFixed(2)}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: discountAmount > 0 ? Colors.white38 : Colors.white,
-                              decoration: discountAmount > 0 ? TextDecoration.lineThrough : null,
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (discountAmount > 0) ...[
-                        const SizedBox(height: 6),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Descuento Promocional ($_appliedPromoCode $discountPercent%):',
-                              style: const TextStyle(fontSize: 12, color: Colors.greenAccent, fontWeight: FontWeight.w600),
-                            ),
-                            Text(
-                              '- RD\$ ${discountAmount.toStringAsFixed(2)}',
-                              style: const TextStyle(fontSize: 12, color: Colors.greenAccent, fontWeight: FontWeight.bold),
-                            ),
-                          ],
-                        ),
-                      ],
-                      const Divider(height: 16),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Total a Cobrar / Pagar:', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                          Text(
-                            'RD\$ ${finalPrice.toStringAsFixed(2)}',
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.amberAccent),
-                          ),
-                        ],
+                      const Text('Costo del Plan:', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white70)),
+                      Text(
+                        'RD\$ ${originalPrice.toStringAsFixed(2)}',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.amberAccent),
                       ),
                     ],
                   ),
                 ),
+                const SizedBox(height: 18),
               ],
 
               const SizedBox(height: 18),

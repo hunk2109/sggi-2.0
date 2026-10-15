@@ -5,6 +5,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../dialogs/assign_membership_dialog.dart';
 import '../dialogs/member_detail_dialog.dart';
 import '../dialogs/new_member_dialog.dart';
+import '../dialogs/pay_fee_dialog.dart';
 import '../models/member_model.dart';
 import '../providers/members_provider.dart';
 
@@ -54,6 +55,44 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
       barrierDismissible: true,
       builder: (_) => MemberDetailDialog(member: member),
     );
+  }
+
+  Future<void> _openCollectPendingPayment(MemberModel member) async {
+    final s = ref.read(memberServiceProvider);
+    final history = await s.getPaymentHistory(member.id);
+    final payments = (history['payments'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+    final pending = payments.firstWhere(
+      (p) => p['status']?.toString().toLowerCase() == 'pending',
+      orElse: () => <String, dynamic>{},
+    );
+
+    if (pending.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se encontró cobro pendiente para este socio.')),
+        );
+      }
+      return;
+    }
+
+    final paymentId = pending['id']?.toString() ?? '';
+    final amount = double.tryParse(pending['amount']?.toString() ?? '') ?? 0.0;
+
+    if (mounted) {
+      showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => PayFeeDialog(
+          member: member,
+          paymentId: paymentId,
+          initialAmount: amount,
+          concept: 'Cuota de Membresía',
+          onPaymentSuccess: () {
+            ref.read(membersProvider.notifier).loadMembers();
+          },
+        ),
+      );
+    }
   }
 
   Future<void> _confirmDeleteMember(MemberModel member) async {
@@ -297,6 +336,15 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
                                             Row(
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
+                                                if (member.hasPendingPayment)
+                                                  IconButton(
+                                                    icon: const Icon(Icons.point_of_sale, size: 18),
+                                                    tooltip: 'Cobrar Cuota Pendiente',
+                                                    color: AppTheme.success,
+                                                    constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                                                    padding: const EdgeInsets.all(4),
+                                                    onPressed: () => _openCollectPendingPayment(member),
+                                                  ),
                                                 IconButton(
                                                   icon: const Icon(Icons.visibility_outlined, size: 18),
                                                   tooltip: 'Ficha Completa',

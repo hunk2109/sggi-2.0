@@ -3,6 +3,7 @@ import '../../../core/constants/api_constants.dart';
 import '../../../core/network/api_client.dart';
 import '../models/cash_register_model.dart';
 import '../models/sale_history_model.dart';
+import '../models/shift_payment_model.dart';
 
 class CashRegisterService {
   final ApiClient _apiClient;
@@ -191,6 +192,25 @@ class CashRegisterService {
       );
     } on DioException catch (e) {
       throw Exception(e.response?.data?['message'] ?? 'Error al anular la venta');
+    }
+  }
+
+  Future<List<ShiftPaymentModel>> getPayments(String cashRegisterId) async {
+    try {
+      final response = await _apiClient.dio.get('${ApiConstants.cashRegister}/$cashRegisterId/payments');
+      final payload = response.data;
+      List<dynamic> list = [];
+
+      if (payload is Map && payload.containsKey('data')) {
+        final inner = payload['data'];
+        if (inner is List) list = inner;
+      } else if (payload is List) {
+        list = payload;
+      }
+
+      return list.map((e) => ShiftPaymentModel.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (_) {
+      return [];
     }
   }
 }
