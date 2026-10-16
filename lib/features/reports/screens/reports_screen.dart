@@ -21,6 +21,7 @@ class ReportsScreen extends ConsumerStatefulWidget {
 
 class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   final _currency = NumberFormat.currency(symbol: 'RD\$ ', decimalDigits: 2);
+  bool _isSendingReport = false;
 
   @override
   void initState() {
@@ -110,9 +111,83 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                   )
                 : const Icon(Icons.refresh, color: Colors.white70),
           ),
+          const SizedBox(width: 12),
+          ElevatedButton.icon(
+            icon: _isSendingReport
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : const Icon(Icons.send_rounded, size: 16),
+            label: Text(_isSendingReport ? 'Enviando...' : 'Enviar Reporte Manual'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: _isSendingReport ? null : _handleSendManualReport,
+          ),
         ],
       ),
     );
+  }
+
+  Future<void> _handleSendManualReport() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E222B),
+        title: const Row(
+          children: [
+            Icon(Icons.mark_email_read_outlined, color: AppTheme.primary),
+            SizedBox(width: 10),
+            Text('Enviar Resumen Diario', style: TextStyle(color: Colors.white, fontSize: 16)),
+          ],
+        ),
+        content: const Text(
+          '¿Deseas generar el reporte de corte y enviarlo de inmediato a los destinatarios configurados (WhatsApp / Correo)?',
+          style: TextStyle(color: Colors.white70, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar', style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Enviar Ahora', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _isSendingReport = true);
+    try {
+      final res = await ref.read(reportsServiceProvider).sendDailySummaryReport();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(res.message),
+          backgroundColor: res.success ? AppTheme.success : AppTheme.error,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al enviar el reporte: $e'),
+          backgroundColor: AppTheme.error,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isSendingReport = false);
+    }
   }
 
   Widget _buildPeriodSelector(String selectedRange) {
@@ -437,7 +512,15 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Nómina vs Ingresos Totales', style: TextStyle(fontSize: 12, color: Colors.white70)),
+                  const Expanded(
+                    child: Text(
+                      'Nómina vs Ingresos Totales',
+                      style: TextStyle(fontSize: 12, color: Colors.white70),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   Text(
                     '${currentPayrollRatio.toStringAsFixed(1)}% (Objetivo: 25% - 40%)',
                     style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),

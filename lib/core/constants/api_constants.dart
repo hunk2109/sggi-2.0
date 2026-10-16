@@ -33,4 +33,5 @@ class ApiConstants {
   static const String dashboard = '/dashboard';
   static const String reports = '/reports';
   static const String reportsAnalytics = '/reports/analytics/financial-and-behavior';
+  static const String sendDailySummary = '/reports/send-daily-summary';
 }

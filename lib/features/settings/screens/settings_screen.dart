@@ -41,6 +41,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
   final _recipientsCtrl = TextEditingController();
   String _notificationChannel = 'both';
   String _ticketPaperSize = '80mm';
+  bool _isSendingManualReport = false;
 
   // WhatsApp test controllers
   final _testPhoneCtrl = TextEditingController();
@@ -919,11 +920,11 @@ if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
               Row(
                 children: [
                   Expanded(
-                    child: _buildFormField('Hora de Apertura', _openingTimeCtrl, '06:00'),
+                    child: _buildTimePickerField('Hora de Apertura', _openingTimeCtrl, '06:00'),
                   ),
                   const SizedBox(width: 20),
                   Expanded(
-                    child: _buildFormField('Hora de Cierre', _closingTimeCtrl, '22:00'),
+                    child: _buildTimePickerField('Hora de Cierre', _closingTimeCtrl, '22:00'),
                   ),
                   const SizedBox(width: 20),
                   Expanded(
@@ -1108,11 +1109,11 @@ if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
                   ),
                   const SizedBox(width: 20),
                   Expanded(
-                    child: _buildFormField('Hora de Corte 1 (Turno Mañana)', _time1Ctrl, '12:00'),
+                    child: _buildTimePickerField('Hora de Corte 1 (Turno Mañana)', _time1Ctrl, '12:00'),
                   ),
                   const SizedBox(width: 20),
                   Expanded(
-                    child: _buildFormField('Hora de Corte 2 (Turno Noche)', _time2Ctrl, '21:00'),
+                    child: _buildTimePickerField('Hora de Corte 2 (Turno Noche)', _time2Ctrl, '21:00'),
                   ),
                 ],
               ),
@@ -1124,6 +1125,50 @@ if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
+                  OutlinedButton.icon(
+                    icon: _isSendingManualReport
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primary))
+                        : const Icon(Icons.send_rounded, size: 18, color: AppTheme.primary),
+                    label: Text(
+                      _isSendingManualReport ? 'Generando y Enviando...' : 'Enviar Reporte Ahora',
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppTheme.primary),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                      backgroundColor: AppTheme.primary.withValues(alpha: 0.1),
+                    ),
+                    onPressed: _isSendingManualReport
+                        ? null
+                        : () async {
+                            final recipients = _recipientsCtrl.text.trim();
+                            if (recipients.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Agrega al menos un teléfono o correo en los destinatarios.'),
+                                  backgroundColor: AppTheme.warning,
+                                ),
+                              );
+                              return;
+                            }
+
+                            setState(() => _isSendingManualReport = true);
+                            try {
+                              final service = ref.read(settingsServiceProvider);
+                              final res = await service.sendDailySummaryReport();
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(res.message),
+                                  backgroundColor: res.success ? AppTheme.success : AppTheme.error,
+                                ),
+                              );
+                            } finally {
+                              if (mounted) setState(() => _isSendingManualReport = false);
+                            }
+                          },
+                  ),
+                  const SizedBox(width: 14),
                   ElevatedButton.icon(
                     icon: state.isSaving
                         ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
@@ -1280,6 +1325,70 @@ if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
             hintText: hint,
             helperText: helperText,
             helperMaxLines: 2,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTimePickerField(String label, TextEditingController controller, String defaultTime) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 6),
+        InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: () async {
+            TimeOfDay initial = const TimeOfDay(hour: 12, minute: 0);
+            final text = controller.text.trim();
+            if (text.contains(':')) {
+              final parts = text.split(':');
+              final h = int.tryParse(parts[0]);
+              final m = int.tryParse(parts[1]);
+              if (h != null && m != null) {
+                initial = TimeOfDay(hour: h, minute: m);
+              }
+            }
+            final picked = await showTimePicker(
+              context: context,
+              initialTime: initial,
+              builder: (context, child) {
+                return Theme(
+                  data: Theme.of(context).copyWith(
+                    colorScheme: const ColorScheme.dark(
+                      primary: AppTheme.primary,
+                      onPrimary: Colors.white,
+                      surface: Color(0xFF1E222B),
+                      onSurface: Colors.white,
+                    ),
+                    dialogTheme: const DialogThemeData(
+                      backgroundColor: Color(0xFF16191E),
+                    ),
+                  ),
+                  child: child!,
+                );
+              },
+            );
+            if (picked != null) {
+              final formattedHour = picked.hour.toString().padLeft(2, '0');
+              final formattedMinute = picked.minute.toString().padLeft(2, '0');
+              setState(() {
+                controller.text = '$formattedHour:$formattedMinute';
+              });
+            }
+          },
+          child: IgnorePointer(
+            child: TextField(
+              controller: controller,
+              readOnly: true,
+              decoration: InputDecoration(
+                hintText: defaultTime,
+                prefixIcon: const Icon(Icons.access_time_filled, color: AppTheme.primary, size: 20),
+                suffixIcon: const Icon(Icons.arrow_drop_down, color: Colors.white70),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              ),
+            ),
           ),
         ),
       ],

@@ -405,4 +405,21 @@ class SettingsService {
       return (success: false, message: e.toString());
     }
   }
+
+  Future<({bool success, String message})> sendDailySummaryReport() async {
+    try {
+      final res = await _apiClient.dio.post('${ApiConstants.reports}/send-daily-summary');
+      final msg = res.data?['message']?.toString() ?? 'Reporte enviado a los destinatarios configurados.';
+      return (success: true, message: msg);
+    } on DioException catch (e) {
+      return (
+        success: false,
+        message: e.response?.data?['message']?.toString() ??
+            e.message ??
+            'Error al enviar el reporte diario',
+      );
+    } catch (e) {
+      return (success: false, message: e.toString());
+    }
+  }
 }

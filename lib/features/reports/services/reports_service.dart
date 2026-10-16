@@ -40,4 +40,23 @@ class ReportsService {
       rethrow;
     }
   }
+
+  Future<({bool success, String message})> sendDailySummaryReport() async {
+    try {
+      final response = await _apiClient.dio.post(ApiConstants.sendDailySummary);
+      if (response.data is Map<String, dynamic>) {
+        final map = response.data as Map<String, dynamic>;
+        final msg = map['message']?.toString() ??
+            (map['data'] is Map ? map['data']['message']?.toString() : null) ??
+            'Reporte generado y enviado con éxito.';
+        return (success: true, message: msg);
+      }
+      return (success: true, message: 'Reporte generado y enviado con éxito.');
+    } catch (e) {
+      return (
+        success: false,
+        message: 'Error al enviar reporte: ${e.toString()}',
+      );
+    }
+  }
 }
