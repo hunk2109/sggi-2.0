@@ -13,6 +13,7 @@ import '../models/email_config_model.dart';
 import '../providers/settings_provider.dart';
 import '../widgets/create_promotion_dialog.dart';
 import '../widgets/roles_permissions_tab.dart';
+import '../widgets/select_report_recipients_dialog.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -1114,12 +1115,7 @@ if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
               ),
               const SizedBox(height: 20),
 
-              _buildFormField(
-                'Destinatarios de Reportes (Teléfonos o Correos separados por coma)',
-                _recipientsCtrl,
-                'Ej: 8095551234, admin@gym.com',
-                helperText: 'A estos números/correos se enviarán las alertas automáticas de cierre de caja.',
-              ),
+              _buildRecipientsSection(),
               const SizedBox(height: 32),
 
               Row(
@@ -1160,6 +1156,112 @@ if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
           ),
         ),
       ),
+    );
+  }
+
+  Future<void> _openEmployeeSelectorDialog() async {
+    final result = await SelectReportRecipientsDialog.show(
+      context,
+      currentRecipients: _recipientsCtrl.text.trim(),
+      notificationChannel: _notificationChannel,
+    );
+
+    if (result != null && mounted) {
+      setState(() {
+        _recipientsCtrl.text = result;
+      });
+    }
+  }
+
+  Widget _buildRecipientsSection() {
+    final rawTokens = _recipientsCtrl.text
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Destinatarios de Reportes (Teléfonos o Correos separados por coma)',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.groups_outlined, size: 16),
+              label: const Text('Extraer de Empleados'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primary.withValues(alpha: 0.15),
+                foregroundColor: AppTheme.primaryLight,
+                side: const BorderSide(color: AppTheme.primary),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              ),
+              onPressed: _openEmployeeSelectorDialog,
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _recipientsCtrl,
+          onChanged: (_) => setState(() {}),
+          decoration: InputDecoration(
+            hintText: 'Ej: 8095551234, admin@gym.com',
+            helperText: 'A estos números/correos se enviarán las alertas automáticas de cierre de caja.',
+            helperMaxLines: 2,
+            suffixIcon: IconButton(
+              icon: const Icon(Icons.person_add_alt_1_outlined, color: AppTheme.primaryLight, size: 20),
+              tooltip: 'Seleccionar de empleados',
+              onPressed: _openEmployeeSelectorDialog,
+            ),
+          ),
+        ),
+        if (rawTokens.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ...rawTokens.map((token) {
+                final isEmail = token.contains('@');
+                return Chip(
+                  avatar: CircleAvatar(
+                    radius: 10,
+                    backgroundColor: isEmail ? Colors.blueAccent.withValues(alpha: 0.2) : Colors.greenAccent.withValues(alpha: 0.2),
+                    child: Icon(
+                      isEmail ? Icons.mail_outline : Icons.chat_bubble_outline,
+                      size: 11,
+                      color: isEmail ? Colors.blueAccent : Colors.greenAccent,
+                    ),
+                  ),
+                  label: Text(
+                    token,
+                    style: const TextStyle(fontSize: 11, color: Colors.white),
+                  ),
+                  backgroundColor: const Color(0xFF1E232B),
+                  side: BorderSide(color: isEmail ? Colors.blueAccent.withValues(alpha: 0.3) : Colors.greenAccent.withValues(alpha: 0.3)),
+                  deleteIcon: const Icon(Icons.close, size: 14, color: Colors.white54),
+                  onDeleted: () {
+                    final updated = rawTokens.where((t) => t != token).join(', ');
+                    setState(() {
+                      _recipientsCtrl.text = updated;
+                    });
+                  },
+                );
+              }),
+              ActionChip(
+                avatar: const Icon(Icons.add, size: 14, color: AppTheme.primaryLight),
+                label: const Text('Agregar Empleado', style: TextStyle(fontSize: 11, color: AppTheme.primaryLight)),
+                backgroundColor: AppTheme.primary.withValues(alpha: 0.1),
+                side: const BorderSide(color: AppTheme.primary),
+                onPressed: _openEmployeeSelectorDialog,
+              ),
+            ],
+          ),
+        ],
+      ],
     );
   }
 

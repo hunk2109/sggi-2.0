@@ -82,8 +82,27 @@ class GymSettingsModel {
       policies: json['policies']?.toString(),
       notificationChannel: json['notificationChannel']?.toString() ?? 'both',
       closingReportTime1: json['closingReportTime1']?.toString() ?? '12:00',
-      closingReportTime2: json['closingReportTime2']?.toString() ?? '21:00',
-      closingReportRecipients: json['closingReportRecipients']?.toString(),
+      closingReportRecipients: () {
+        final val = json['closingReportRecipients'];
+        if (val == null) return null;
+        if (val is List) {
+          final items = <String>[];
+          for (final item in val) {
+            if (item is Map) {
+              final p = item['phone']?.toString().trim();
+              final e = item['email']?.toString().trim();
+              if (p != null && p.isNotEmpty) items.add(p);
+              if (e != null && e.isNotEmpty) items.add(e);
+            } else if (item != null) {
+              final str = item.toString().trim();
+              if (str.isNotEmpty) items.add(str);
+            }
+          }
+          final seen = <String>{};
+          return items.where((i) => seen.add(i.toLowerCase())).join(', ');
+        }
+        return val.toString();
+      }(),
       logoImage: json['logoImage']?.toString(),
       mb360Enabled: json['mb360Enabled'] == true || json['mb360Enabled'] == 1,
       mb360Ip: json['mb360Ip']?.toString(),
