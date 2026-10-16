@@ -31,4 +31,6 @@ class ApiConstants {
   static const String validatePromotion = '/promotions/validate';
   static const String userRoles = '/user-roles';
   static const String dashboard = '/dashboard';
+  static const String reports = '/reports';
+  static const String reportsAnalytics = '/reports/analytics/financial-and-behavior';
 }

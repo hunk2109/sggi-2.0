@@ -18,6 +18,7 @@ import '../../employees/screens/employees_screen.dart';
 import '../../settings/screens/settings_screen.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../../campaigns/screens/campaigns_screen.dart';
+import '../../reports/screens/reports_screen.dart';
 import '../../auth/dialogs/user_profile_dialog.dart';
 
 class MainShellScreen extends ConsumerStatefulWidget {
@@ -481,6 +482,11 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
         return const EmployeesScreen();
       case 7:
         return const CampaignsScreen();
+      case 8:
+        return ReportsScreen(
+          onNavigateToCampaigns: () => setState(() => _selectedIndex = 7),
+          onNavigateToEmployees: () => setState(() => _selectedIndex = 6),
+        );
       case 9:
         return const SettingsScreen();
       default:
