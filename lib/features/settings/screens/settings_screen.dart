@@ -14,6 +14,7 @@ import '../providers/settings_provider.dart';
 import '../widgets/create_promotion_dialog.dart';
 import '../widgets/roles_permissions_tab.dart';
 import '../widgets/select_report_recipients_dialog.dart';
+import '../widgets/license_info_tab.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -82,7 +83,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 6, vsync: this);
+    _tabController = TabController(length: 7, vsync: this);
     _loadAccessDbPath();
   }
 
@@ -472,6 +473,7 @@ if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
                   Tab(icon: Icon(Icons.notifications_active_outlined, size: 18), text: 'Reportes & Automatización'),
                   Tab(icon: Icon(Icons.fingerprint, size: 18), text: 'Biométrico & BD Access'),
                   Tab(icon: Icon(Icons.security_outlined, size: 18), text: 'Roles & Permisos'),
+                  Tab(icon: Icon(Icons.verified_user_outlined, size: 18), text: 'Licencia del Sistema'),
                 ],
               ),
             ),
@@ -488,6 +490,7 @@ if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
                   _buildAutomationTab(gymState),
                   _buildAccessDbTab(),
                   const RolesPermissionsTab(),
+                  const LicenseInfoTab(),
                 ],
               ),
             ),
@@ -2115,6 +2118,18 @@ if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
                         ref.read(promotionsProvider.notifier).toggleActive(promo.id);
                       },
                     ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined, size: 18, color: Colors.amberAccent),
+                    tooltip: 'Editar cupón',
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.all(4),
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder: (_) => CreatePromotionDialog(promotion: promo),
+                      );
+                    },
                   ),
                   IconButton(
                     icon: const Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),

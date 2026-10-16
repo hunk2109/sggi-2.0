@@ -1,11 +1,13 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:window_manager/window_manager.dart';
+import 'core/license/license_provider.dart';
 import 'core/storage/storage_service.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/auth/screens/login_screen.dart';
+import 'features/license/screens/activation_screen.dart';
 import 'features/shell/screens/main_shell_screen.dart';
 
 void main() async {
@@ -53,6 +55,16 @@ class SggiApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authProvider);
+    final license = ref.watch(licenseProvider);
+
+    final Widget home;
+    if (!license.isActivated) {
+      home = const ActivationScreen();
+    } else if (authState.isAuthenticated) {
+      home = const MainShellScreen();
+    } else {
+      home = const LoginScreen();
+    }
 
     return MaterialApp(
       title: 'SGGI 2.0',
@@ -60,7 +72,7 @@ class SggiApp extends ConsumerWidget {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.dark, // Default to sleek dark desktop theme
-      home: authState.isAuthenticated ? const MainShellScreen() : const LoginScreen(),
+      home: home,
     );
   }
 }

@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:window_manager/window_manager.dart';
+import '../../../core/license/license_provider.dart';
+import '../../../core/license/license_validator.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../access/screens/access_control_screen.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -42,6 +44,25 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
     (title: 'Reportes & Métricas', icon: Icons.bar_chart_outlined, shortcut: 'F8'),
     (title: 'Configuración', icon: Icons.settings_outlined, shortcut: 'F9'),
   ];
+
+  /// Módulo de licencia requerido por cada entrada del menú (null = siempre disponible).
+  static const List<String?> _navModules = [
+    null, // Dashboard
+    LicenseModules.pos,
+    LicenseModules.miembros,
+    LicenseModules.acceso,
+    LicenseModules.caja,
+    LicenseModules.inventario,
+    LicenseModules.empleados,
+    LicenseModules.campanas,
+    LicenseModules.reportes,
+    null, // Configuración
+  ];
+
+  bool _isLocked(int index) {
+    final module = _navModules[index];
+    return module != null && !ref.read(licenseProvider).hasModule(module);
+  }
 
   @override
   void initState() {
@@ -276,6 +297,7 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
               itemBuilder: (context, index) {
                 final item = _navItems[index];
                 final isSelected = _selectedIndex == index;
+                final locked = _isLocked(index);
 
                 return Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -306,7 +328,9 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
                                   ),
                                 ),
                               ),
-                              if (item.shortcut.isNotEmpty)
+                              if (locked)
+                                const Icon(Icons.lock_outline, size: 14, color: Colors.white38)
+                              else if (item.shortcut.isNotEmpty)
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(
@@ -421,6 +445,24 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
   }
 
   Widget _buildBody() {
+    if (_isLocked(_selectedIndex)) {
+      final current = _navItems[_selectedIndex];
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.lock_outline, size: 64, color: Colors.white24),
+            const SizedBox(height: 16),
+            Text(current.title, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            const Text(
+              'Este módulo no está incluido en tu licencia. Contacta a tu proveedor para habilitarlo.',
+              style: TextStyle(color: Colors.grey),
+            ),
+          ],
+        ),
+      );
+    }
     switch (_selectedIndex) {
       case 0:
         return DashboardScreen(onNavigate: (index) => setState(() => _selectedIndex = index));

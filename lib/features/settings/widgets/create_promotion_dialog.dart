@@ -3,10 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../memberships/models/promotion_model.dart';
 import '../../memberships/services/promotion_service.dart';
 
 class CreatePromotionDialog extends ConsumerStatefulWidget {
-  const CreatePromotionDialog({super.key});
+  final PromotionModel? promotion;
+  const CreatePromotionDialog({super.key, this.promotion});
 
   @override
   ConsumerState<CreatePromotionDialog> createState() => _CreatePromotionDialogState();
@@ -23,6 +25,23 @@ class _CreatePromotionDialogState extends ConsumerState<CreatePromotionDialog> {
   bool _hasExpiration = false;
   DateTime _expiresAt = DateTime.now().add(const Duration(days: 30));
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.promotion != null) {
+      final p = widget.promotion!;
+      _codeCtrl.text = p.code;
+      _discountCtrl.text = p.discountPercentage.toString();
+      _descriptionCtrl.text = p.description ?? '';
+      _hasMaxUses = p.maxUses != null;
+      _maxUsesCtrl.text = p.maxUses?.toString() ?? '50';
+      _hasExpiration = p.expiresAt != null;
+      if (p.expiresAt != null) {
+        _expiresAt = p.expiresAt!;
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -44,13 +63,29 @@ class _CreatePromotionDialogState extends ConsumerState<CreatePromotionDialog> {
 
     setState(() => _isLoading = true);
 
-    final success = await ref.read(promotionsProvider.notifier).createPromotion(
-      code: code,
-      discountPercentage: discount,
-      description: description.isNotEmpty ? description : null,
-      maxUses: maxUses,
-      expiresAt: expiresAt,
-    );
+    final isEdit = widget.promotion != null;
+    final bool success;
+
+    if (isEdit) {
+      success = await ref.read(promotionsProvider.notifier).updatePromotion(
+        widget.promotion!.id,
+        code: code,
+        discountPercentage: discount,
+        description: description,
+        maxUses: maxUses,
+        clearMaxUses: !_hasMaxUses,
+        expiresAt: expiresAt,
+        clearExpiresAt: !_hasExpiration,
+      );
+    } else {
+      success = await ref.read(promotionsProvider.notifier).createPromotion(
+        code: code,
+        discountPercentage: discount,
+        description: description.isNotEmpty ? description : null,
+        maxUses: maxUses,
+        expiresAt: expiresAt,
+      );
+    }
 
     if (mounted) {
       setState(() => _isLoading = false);
@@ -62,14 +97,17 @@ class _CreatePromotionDialogState extends ConsumerState<CreatePromotionDialog> {
               children: [
                 const Icon(Icons.check_circle_outline, color: Colors.white, size: 20),
                 const SizedBox(width: 8),
-                Text('Cupón "$code" creado exitosamente con $discount% de descuento.'),
+                Text(isEdit
+                    ? 'Cupón "$code" actualizado exitosamente.'
+                    : 'Cupón "$code" creado exitosamente con $discount% de descuento.'),
               ],
             ),
             backgroundColor: AppTheme.success,
           ),
         );
       } else {
-        final error = ref.read(promotionsProvider).error ?? 'Error al crear cupón';
+        final error = ref.read(promotionsProvider).error ??
+            (isEdit ? 'Error al actualizar cupón' : 'Error al crear cupón');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(error),
@@ -82,6 +120,7 @@ class _CreatePromotionDialogState extends ConsumerState<CreatePromotionDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final isEdit = widget.promotion != null;
     return Dialog(
       backgroundColor: const Color(0xFF1E232B),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -99,13 +138,17 @@ class _CreatePromotionDialogState extends ConsumerState<CreatePromotionDialog> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Row(
+                    Row(
                       children: [
-                        Icon(Icons.confirmation_number_outlined, color: Colors.amberAccent, size: 24),
-                        SizedBox(width: 10),
+                        Icon(
+                          isEdit ? Icons.edit_note : Icons.confirmation_number_outlined,
+                          color: Colors.amberAccent,
+                          size: 24,
+                        ),
+                        const SizedBox(width: 10),
                         Text(
-                          'Nuevo Cupón / Promoción',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                          isEdit ? 'Editar Cupón / Promoción' : 'Nuevo Cupón / Promoción',
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
                         ),
                       ],
                     ),
@@ -316,7 +359,9 @@ class _CreatePromotionDialogState extends ConsumerState<CreatePromotionDialog> {
                           ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                           : const Icon(Icons.save, size: 18, color: Colors.white),
                       label: Text(
-                        _isLoading ? 'Guardando...' : 'Crear Cupón',
+                        _isLoading
+                            ? 'Guardando...'
+                            : (isEdit ? 'Guardar Cambios' : 'Crear Cupón'),
                         style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
                       ),
                       onPressed: _isLoading ? null : _handleSubmit,

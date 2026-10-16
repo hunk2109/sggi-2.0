@@ -81,6 +81,39 @@ class PromotionsNotifier extends Notifier<PromotionsState> {
     }
   }
 
+  Future<bool> updatePromotion(
+    String id, {
+    String? code,
+    num? discountPercentage,
+    String? description,
+    int? maxUses,
+    bool clearMaxUses = false,
+    DateTime? expiresAt,
+    bool clearExpiresAt = false,
+    bool? active,
+  }) async {
+    final service = ref.read(promotionServiceProvider);
+    try {
+      await service.updatePromotion(
+        id,
+        code: code,
+        discountPercentage: discountPercentage,
+        description: description,
+        maxUses: maxUses,
+        clearMaxUses: clearMaxUses,
+        expiresAt: expiresAt,
+        clearExpiresAt: clearExpiresAt,
+        active: active,
+      );
+      await loadPromotions();
+      ref.invalidate(activePromotionsProvider);
+      return true;
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+      return false;
+    }
+  }
+
   Future<bool> toggleActive(String id) async {
     final service = ref.read(promotionServiceProvider);
     final success = await service.togglePromotionActive(id);
@@ -202,7 +235,9 @@ class PromotionService {
     num? discountPercentage,
     String? description,
     int? maxUses,
+    bool clearMaxUses = false,
     DateTime? expiresAt,
+    bool clearExpiresAt = false,
     bool? active,
   }) async {
     try {
@@ -210,8 +245,16 @@ class PromotionService {
       if (code != null) data['code'] = code.trim().toUpperCase();
       if (discountPercentage != null) data['discountPercentage'] = discountPercentage;
       if (description != null) data['description'] = description.trim();
-      if (maxUses != null) data['maxUses'] = maxUses;
-      if (expiresAt != null) data['expiresAt'] = expiresAt.toIso8601String();
+      if (clearMaxUses) {
+        data['maxUses'] = null;
+      } else if (maxUses != null) {
+        data['maxUses'] = maxUses;
+      }
+      if (clearExpiresAt) {
+        data['expiresAt'] = null;
+      } else if (expiresAt != null) {
+        data['expiresAt'] = expiresAt.toIso8601String();
+      }
       if (active != null) data['active'] = active;
 
       final response = await _apiClient.dio.patch(
