@@ -1287,6 +1287,7 @@ if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
   }
 
   Widget _buildAccessDbTab() {
+    final isZktecoEnabled = ref.watch(zktecoSyncProvider);
     final test = _accessTestResult;
     final isSuccess = test?['success'] == true;
     final machines = (test?['machines'] as List?)?.cast<Map<String, dynamic>>() ?? [];
@@ -1331,6 +1332,110 @@ if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
               ],
             ),
             const Divider(height: 32),
+
+            // Interruptor Maestro de ZKTeco
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+              decoration: BoxDecoration(
+                color: isZktecoEnabled
+                    ? Colors.green.withValues(alpha: 0.08)
+                    : Colors.white.withValues(alpha: 0.04),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: isZktecoEnabled
+                      ? Colors.greenAccent.withValues(alpha: 0.3)
+                      : Colors.white12,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    isZktecoEnabled ? Icons.fingerprint : Icons.fingerprint_outlined,
+                    size: 32,
+                    color: isZktecoEnabled ? Colors.greenAccent : Colors.white38,
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          isZktecoEnabled
+                              ? 'Sincronización ZKTeco / Access: HABILITADA'
+                              : 'Sincronización ZKTeco / Access: DESACTIVADA (Modo Manual / QR)',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: isZktecoEnabled ? Colors.greenAccent : Colors.white70,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          isZktecoEnabled
+                              ? 'El sistema conecta con la base de datos .mdb y los torniquetes o relojes biométricos ZKTeco en red.'
+                              : 'Desactiva la integración si este cliente o gimnasio no utiliza biométricos ni torniquetes. El sistema operará 100% independiente con código de barras, carnet QR o búsqueda manual.',
+                          style: const TextStyle(fontSize: 12, color: Colors.white54),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: isZktecoEnabled,
+                    activeThumbColor: Colors.greenAccent,
+                    onChanged: (val) async {
+                      final ok = await ref.read(zktecoSyncProvider.notifier).setEnabled(val);
+                      if (mounted && ok) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              val
+                                  ? 'Sincronización con ZKTeco activada'
+                                  : 'Sincronización con ZKTeco desactivada (modo manual / QR)',
+                            ),
+                            behavior: SnackBarBehavior.floating,
+                            backgroundColor: val ? Colors.green.shade800 : Colors.grey.shade800,
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            if (!isZktecoEnabled) ...[
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.black26,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.white10),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.check_circle_outline, color: Colors.greenAccent, size: 28),
+                    SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Gimnasio configurado en Modo Autónomo / Control Manual',
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'No se requieren configuraciones de red, archivos Access (.mdb) ni equipos físicos. Todos los registros de asistencia se gestionan a través de la pantalla de Control de Acceso con lector de código de barras, cámara QR o búsqueda manual de socios.',
+                            style: TextStyle(fontSize: 12, color: Colors.white60),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ] else ...[
 
             // Ruta de la BD
             const Text(
@@ -1753,10 +1858,11 @@ if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
               ),
             ),
           ],
-        ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildAccessStatChip(String label, String value, Color color) {
     return Container(

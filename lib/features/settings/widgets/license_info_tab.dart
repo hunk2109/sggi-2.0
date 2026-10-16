@@ -243,12 +243,54 @@ Quedo a la espera de su respuesta. ¡Muchas gracias!''';
           ),
           const SizedBox(height: 14),
 
-          // Fila Nube
-          _buildInfoRow(
-            icon: Icons.cloud_done_outlined,
-            title: 'Sincronización en la Nube',
-            value: (data?.cloudAccess ?? false) ? 'Habilitada (Firebase / Cloud)' : 'Solo Local (Offline)',
-            valueColor: (data?.cloudAccess ?? false) ? Colors.blueAccent : Colors.white70,
+          // Fila Sincronización en la Nube
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: (data?.cloudAccess ?? false)
+                  ? Colors.blue.withValues(alpha: 0.08)
+                  : Colors.amber.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: (data?.cloudAccess ?? false)
+                    ? Colors.blueAccent.withValues(alpha: 0.3)
+                    : Colors.amber.withValues(alpha: 0.3),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  (data?.cloudAccess ?? false) ? Icons.cloud_done : Icons.cloud_off,
+                  color: (data?.cloudAccess ?? false) ? Colors.lightBlueAccent : Colors.amberAccent,
+                  size: 22,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        (data?.cloudAccess ?? false)
+                            ? 'Sincronización en la Nube: Habilitada ☁️'
+                            : 'Plan Solo Local (Sin Nube / Offline) 💻',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: (data?.cloudAccess ?? false) ? Colors.lightBlueAccent : Colors.amberAccent,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        (data?.cloudAccess ?? false)
+                            ? 'Tu plan incluye acceso a sincronización remota, respaldos y conectividad en la nube.'
+                            : 'El sistema funciona de forma 100% independiente y local. No requiere conexión a internet para operar.',
+                        style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.7)),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 14),
 

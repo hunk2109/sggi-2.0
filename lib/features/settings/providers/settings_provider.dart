@@ -303,3 +303,28 @@ final emailConfigProvider = NotifierProvider<EmailConfigNotifier, EmailConfigSta
   return EmailConfigNotifier();
 });
 
+class ZktecoSyncNotifier extends Notifier<bool> {
+  @override
+  bool build() {
+    _load();
+    return true;
+  }
+
+  Future<void> _load() async {
+    final service = ref.read(settingsServiceProvider);
+    final enabled = await service.getZktecoSyncEnabled();
+    state = enabled;
+  }
+
+  Future<bool> setEnabled(bool enabled) async {
+    final service = ref.read(settingsServiceProvider);
+    final ok = await service.setZktecoSyncEnabled(enabled);
+    if (ok) {
+      state = enabled;
+    }
+    return ok;
+  }
+}
+
+final zktecoSyncProvider = NotifierProvider<ZktecoSyncNotifier, bool>(ZktecoSyncNotifier.new);
+

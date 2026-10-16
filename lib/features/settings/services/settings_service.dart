@@ -270,6 +270,33 @@ class SettingsService {
     }
   }
 
+  Future<bool> getZktecoSyncEnabled() async {
+    try {
+      final response = await _apiClient.dio.get('${ApiConstants.sync}/zkteco-status');
+      if (response.data is Map && response.data['enabled'] != null) {
+        return response.data['enabled'] == true;
+      }
+      return true;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  Future<bool> setZktecoSyncEnabled(bool enabled) async {
+    try {
+      final response = await _apiClient.dio.put(
+        '${ApiConstants.sync}/zkteco-status',
+        data: {'enabled': enabled},
+      );
+      if (response.data is Map && response.data['success'] == true) {
+        return true;
+      }
+      return (response.statusCode ?? 500) < 300;
+    } catch (_) {
+      return false;
+    }
+  }
+
   // ================= EMAIL SETTINGS =================
 
   Future<EmailConfigModel?> getEmailConfig() async {

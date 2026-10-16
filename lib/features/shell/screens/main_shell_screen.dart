@@ -16,6 +16,7 @@ import '../../cash_register/screens/cash_register_screen.dart';
 import '../../inventory/screens/inventory_screen.dart';
 import '../../employees/screens/employees_screen.dart';
 import '../../settings/screens/settings_screen.dart';
+import '../../settings/providers/settings_provider.dart';
 import '../../campaigns/screens/campaigns_screen.dart';
 import '../../auth/dialogs/user_profile_dialog.dart';
 
@@ -506,6 +507,9 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
   }
 
   Widget _buildStatusBar(dynamic user) {
+    final hasCloudAccess = ref.watch(licenseProvider).hasCloudAccess;
+    final isZktecoEnabled = ref.watch(zktecoSyncProvider);
+
     return Container(
       height: 28,
       color: const Color(0xFF14171C),
@@ -536,11 +540,33 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
                 style: TextStyle(fontSize: 11, color: Colors.white54),
               ),
               const SizedBox(width: 20),
-              const Icon(Icons.security, size: 13, color: Colors.white38),
+              Icon(
+                isZktecoEnabled ? Icons.fingerprint : Icons.fingerprint_outlined,
+                size: 13,
+                color: isZktecoEnabled ? Colors.greenAccent : Colors.white38,
+              ),
               const SizedBox(width: 6),
-              const Text(
-                'ZKTeco: Sincronizado',
-                style: TextStyle(fontSize: 11, color: Colors.white54),
+              Text(
+                isZktecoEnabled ? 'ZKTeco: Sincronizado' : 'Biométrico: Desactivado (Manual)',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: isZktecoEnabled ? Colors.white70 : Colors.white38,
+                ),
+              ),
+              const SizedBox(width: 20),
+              Icon(
+                hasCloudAccess ? Icons.cloud_done_outlined : Icons.cloud_off_outlined,
+                size: 13,
+                color: hasCloudAccess ? Colors.lightBlueAccent : Colors.amber.shade300,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                hasCloudAccess ? 'Sincronización Nube: Activa' : 'Modo: Solo Local (Offline)',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: hasCloudAccess ? FontWeight.normal : FontWeight.w600,
+                  color: hasCloudAccess ? Colors.lightBlueAccent : Colors.amber.shade200,
+                ),
               ),
             ],
           ),

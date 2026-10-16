@@ -23,6 +23,9 @@ class LicenseState {
   /// Si no hay licencia, nada está habilitado (la app muestra la pantalla de activación).
   bool hasModule(String module) => license?.hasModule(module) ?? false;
 
+  /// Indica si la licencia contratada incluye sincronización en la nube o es plan solo local.
+  bool get hasCloudAccess => license?.cloudAccess ?? false;
+
   int? get daysRemaining => license?.expiresAt?.difference(DateTime.now()).inDays;
 }
 
