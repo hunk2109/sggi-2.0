@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../../../core/constants/app_permissions.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../models/analytics_model.dart';
 import '../providers/reports_provider.dart';
 
@@ -111,25 +113,27 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                   )
                 : const Icon(Icons.refresh, color: Colors.white70),
           ),
-          const SizedBox(width: 12),
-          ElevatedButton.icon(
-            icon: _isSendingReport
-                ? const SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                  )
-                : const Icon(Icons.send_rounded, size: 16),
-            label: Text(_isSendingReport ? 'Enviando...' : 'Enviar Reporte Manual'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          if (ref.watch(authProvider).hasPermission(AppPermissions.reportsExport)) ...[
+            const SizedBox(width: 12),
+            ElevatedButton.icon(
+              icon: _isSendingReport
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.send_rounded, size: 16),
+              label: Text(_isSendingReport ? 'Enviando...' : 'Enviar Reporte Manual'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: _isSendingReport ? null : _handleSendManualReport,
             ),
-            onPressed: _isSendingReport ? null : _handleSendManualReport,
-          ),
+          ],
         ],
       ),
     );

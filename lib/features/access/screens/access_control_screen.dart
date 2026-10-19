@@ -1,7 +1,10 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../../../../core/constants/app_permissions.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/app_table_scroll_view.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../../members/models/member_model.dart';
 import '../../members/providers/members_provider.dart';
 import '../providers/access_provider.dart';
@@ -163,16 +166,18 @@ class _AccessControlScreenState extends ConsumerState<AccessControlScreen> {
                 color: Colors.redAccent,
               ),
               const Spacer(),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.person_search, size: 18),
-                label: const Text('Acceso Manual (Nombre)'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF232936),
-                  foregroundColor: Colors.white,
+              if (ref.watch(authProvider).hasPermission(AppPermissions.accessManualEntry)) ...[
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.person_search, size: 18),
+                  label: const Text('Acceso Manual (Nombre)'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF232936),
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: _openManualMemberSelect,
                 ),
-                onPressed: _openManualMemberSelect,
-              ),
-              const SizedBox(width: 8),
+                const SizedBox(width: 8),
+              ],
               IconButton(
                 icon: const Icon(Icons.refresh),
                 tooltip: 'Actualizar asistencias',
@@ -300,10 +305,10 @@ class _AccessControlScreenState extends ConsumerState<AccessControlScreen> {
                                         ],
                                       ),
                                     )
-                                  : SingleChildScrollView(
-                                      child: SizedBox(
-                                        width: double.infinity,
-                                        child: DataTable(
+                                  : AppTableScrollView(
+                                      child: DataTable(
+                                                columnSpacing: 18,
+                                                horizontalMargin: 14,
                                           headingRowHeight: 42,
                                           dataRowMinHeight: 46,
                                           dataRowMaxHeight: 46,
@@ -359,9 +364,8 @@ class _AccessControlScreenState extends ConsumerState<AccessControlScreen> {
                                               ],
                                             );
                                           }).toList(),
-                                        ),
-                                      ),
-                                    ),
+                                              ),
+                                            ),
                         ),
                       ],
                     ),

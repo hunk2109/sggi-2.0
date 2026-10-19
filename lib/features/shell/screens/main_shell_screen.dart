@@ -20,6 +20,8 @@ import '../../settings/providers/settings_provider.dart';
 import '../../campaigns/screens/campaigns_screen.dart';
 import '../../reports/screens/reports_screen.dart';
 import '../../auth/dialogs/user_profile_dialog.dart';
+import '../../../core/network/backend_status_provider.dart';
+import '../../../core/constants/app_permissions.dart';
 
 class MainShellScreen extends ConsumerStatefulWidget {
   const MainShellScreen({super.key});
@@ -61,9 +63,34 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
     null, // Configuración
   ];
 
-  bool _isLocked(int index) {
+  /// Permiso del sistema requerido para cada módulo (null = libre / dashboard).
+  static const List<String?> _navPermissions = [
+    null, // Dashboard
+    AppPermissions.posAccess, // Punto de Venta (F1)
+    AppPermissions.membersAccess, // Socios & Membresías (F2)
+    AppPermissions.accessControlAccess, // Control de Acceso (F3)
+    AppPermissions.cashAccess, // Caja & Arqueo (F4)
+    AppPermissions.inventoryAccess, // Inventario & Productos (F5)
+    AppPermissions.employeesAccess, // Nómina & Empleados (F6)
+    AppPermissions.campaignsAccess, // Envíos Masivos (F7)
+    AppPermissions.reportsAccess, // Reportes & Métricas (F8)
+    AppPermissions.settingsAccess, // Configuración (F9)
+  ];
+
+  bool _isLockedByLicense(int index) {
     final module = _navModules[index];
-    return module != null && !ref.read(licenseProvider).hasModule(module);
+    return module != null && !ref.watch(licenseProvider).hasModule(module);
+  }
+
+  bool _isLockedByPermission(int index) {
+    final perm = _navPermissions[index];
+    if (perm == null) return false;
+    final authState = ref.watch(authProvider);
+    return !authState.hasPermission(perm);
+  }
+
+  bool _isLocked(int index) {
+    return _isLockedByLicense(index) || _isLockedByPermission(index);
   }
 
   @override
@@ -71,6 +98,7 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
     super.initState();
     _updateClock();
     _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) => _updateClock());
+    HardwareKeyboard.instance.addHandler(_handleGlobalKeyEvent);
   }
 
   void _updateClock() {
@@ -90,71 +118,84 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handleGlobalKeyEvent);
     _clockTimer.cancel();
     super.dispose();
   }
 
-  void _handleKeyEvent(KeyEvent event) {
-    if (event is KeyDownEvent) {
-      if (event.logicalKey == LogicalKeyboardKey.f1) {
-        setState(() => _selectedIndex = 1);
-      } else if (event.logicalKey == LogicalKeyboardKey.f2) {
-        setState(() => _selectedIndex = 2);
-      } else if (event.logicalKey == LogicalKeyboardKey.f3) {
-        setState(() => _selectedIndex = 3);
-      } else if (event.logicalKey == LogicalKeyboardKey.f4) {
-        setState(() => _selectedIndex = 4);
-      } else if (event.logicalKey == LogicalKeyboardKey.f5) {
-        setState(() => _selectedIndex = 5);
-      } else if (event.logicalKey == LogicalKeyboardKey.f6) {
-        setState(() => _selectedIndex = 6);
-      } else if (event.logicalKey == LogicalKeyboardKey.f7) {
-        setState(() => _selectedIndex = 7);
-      } else if (event.logicalKey == LogicalKeyboardKey.f8) {
-        setState(() => _selectedIndex = 8);
-      } else if (event.logicalKey == LogicalKeyboardKey.f9) {
-        setState(() => _selectedIndex = 9);
-      }
+  bool _handleGlobalKeyEvent(KeyEvent event) {
+    if (event is! KeyDownEvent) return false;
+
+    int? targetIndex;
+    if (event.logicalKey == LogicalKeyboardKey.f1) {
+      targetIndex = 1;
+    } else if (event.logicalKey == LogicalKeyboardKey.f2) {
+      targetIndex = 2;
+    } else if (event.logicalKey == LogicalKeyboardKey.f3) {
+      targetIndex = 3;
+    } else if (event.logicalKey == LogicalKeyboardKey.f4) {
+      targetIndex = 4;
+    } else if (event.logicalKey == LogicalKeyboardKey.f5) {
+      targetIndex = 5;
+    } else if (event.logicalKey == LogicalKeyboardKey.f6) {
+      targetIndex = 6;
+    } else if (event.logicalKey == LogicalKeyboardKey.f7) {
+      targetIndex = 7;
+    } else if (event.logicalKey == LogicalKeyboardKey.f8) {
+      targetIndex = 8;
+    } else if (event.logicalKey == LogicalKeyboardKey.f9) {
+      targetIndex = 9;
     }
+
+    if (targetIndex != null) {
+      if (_isLocked(targetIndex)) {
+        // Módulo bloqueado por licencia o permisos: ignorar atajo
+        return true;
+      }
+      if (mounted) {
+        final navigator = Navigator.of(context, rootNavigator: true);
+        while (navigator.canPop()) {
+          navigator.pop();
+        }
+        setState(() {
+          _selectedIndex = targetIndex!;
+        });
+      }
+      return true;
+    }
+
+    return false;
   }
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authProvider);
-    final user = authState.user;
+    return Scaffold(
+      body: Column(
+        children: [
+          // Custom Desktop Titlebar
+          _buildCustomTitleBar(),
 
-    return KeyboardListener(
-      focusNode: FocusNode(),
-      autofocus: true,
-      onKeyEvent: _handleKeyEvent,
-      child: Scaffold(
-        body: Column(
-          children: [
-            // Custom Desktop Titlebar
-            _buildCustomTitleBar(),
+          // Main Application View
+          Expanded(
+            child: Row(
+              children: [
+                // Collapsible Sidebar
+                _buildSidebar(context),
 
-            // Main Application View
-            Expanded(
-              child: Row(
-                children: [
-                  // Collapsible Sidebar
-                  _buildSidebar(context),
-
-                  // Content Area
-                  Expanded(
-                    child: Container(
-                      color: Theme.of(context).scaffoldBackgroundColor,
-                      child: _buildBody(),
-                    ),
+                // Content Area
+                Expanded(
+                  child: Container(
+                    color: Theme.of(context).scaffoldBackgroundColor,
+                    child: _buildBody(),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
+          ),
 
-            // Bottom Status Bar
-            _buildStatusBar(user),
-          ],
-        ),
+          // Bottom Status Bar
+          _buildStatusBar(),
+        ],
       ),
     );
   }
@@ -449,17 +490,26 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
   Widget _buildBody() {
     if (_isLocked(_selectedIndex)) {
       final current = _navItems[_selectedIndex];
+      final isLockedByRole = _isLockedByPermission(_selectedIndex);
+      final user = ref.watch(authProvider).user;
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.lock_outline, size: 64, color: Colors.white24),
+            Icon(
+              isLockedByRole ? Icons.shield_outlined : Icons.lock_outline,
+              size: 64,
+              color: isLockedByRole ? Colors.amber.withValues(alpha: 0.6) : Colors.white24,
+            ),
             const SizedBox(height: 16),
             Text(current.title, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            const Text(
-              'Este módulo no está incluido en tu licencia. Contacta a tu proveedor para habilitarlo.',
-              style: TextStyle(color: Colors.grey),
+            Text(
+              isLockedByRole
+                  ? 'Acceso restringido para el rol ${user?.role.label ?? "actual"}.\nContacta a un Administrador para solicitar permisos a este módulo.'
+                  : 'Este módulo no está incluido en tu licencia. Contacta a tu proveedor para habilitarlo.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.grey, height: 1.4),
             ),
           ],
         ),
@@ -512,9 +562,10 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
     }
   }
 
-  Widget _buildStatusBar(dynamic user) {
+  Widget _buildStatusBar() {
     final hasCloudAccess = ref.watch(licenseProvider).hasCloudAccess;
     final isZktecoEnabled = ref.watch(zktecoSyncProvider);
+    final backendStatus = ref.watch(backendStatusProvider);
 
     return Container(
       height: 28,
@@ -525,20 +576,48 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
         children: [
           Row(
             children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF107C41),
-                  shape: BoxShape.circle,
+              InkWell(
+                onTap: () => ref.read(backendStatusProvider.notifier).checkHealth(),
+                borderRadius: BorderRadius.circular(4),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: backendStatus.isOnline
+                              ? const Color(0xFF107C41)
+                              : backendStatus.isChecking
+                                  ? Colors.amber
+                                  : Colors.redAccent,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        backendStatus.isOnline
+                            ? 'Backend: Online'
+                            : backendStatus.isChecking
+                                ? 'Backend: Conectando...'
+                                : 'Backend: Offline',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: backendStatus.isOnline ? FontWeight.normal : FontWeight.w600,
+                          color: backendStatus.isOnline
+                              ? Colors.white54
+                              : backendStatus.isChecking
+                                  ? Colors.amber.shade200
+                                  : Colors.redAccent,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(width: 8),
-              const Text(
-                'Backend: Online',
-                style: TextStyle(fontSize: 11, color: Colors.white54),
-              ),
-              const SizedBox(width: 20),
+              const SizedBox(width: 16),
               const Icon(Icons.print, size: 13, color: Colors.white38),
               const SizedBox(width: 6),
               const Text(
@@ -578,27 +657,6 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
           ),
           Row(
             children: [
-              if (user != null) ...[
-                InkWell(
-                  onTap: () => UserProfileDialog.show(context),
-                  borderRadius: BorderRadius.circular(4),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.account_circle_outlined, size: 14, color: AppTheme.primaryLight),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Usuario: ${user.fullName} (${user.role.label})',
-                          style: const TextStyle(fontSize: 11, color: Colors.white70),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-              ],
               Text(
                 _currentTime,
                 style: const TextStyle(

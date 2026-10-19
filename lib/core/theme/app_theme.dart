@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
@@ -74,6 +74,23 @@ class AppTheme {
           borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: primary, width: 2),
         ),
+      ),
+      scrollbarTheme: ScrollbarThemeData(
+        thumbVisibility: const WidgetStatePropertyAll(true),
+        trackVisibility: const WidgetStatePropertyAll(true),
+        thickness: const WidgetStatePropertyAll(10.0),
+        radius: const Radius.circular(5.0),
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.dragged)) {
+            return primary;
+          }
+          if (states.contains(WidgetState.hovered)) {
+            return primaryLight;
+          }
+          return Colors.white.withValues(alpha: 0.35);
+        }),
+        trackColor: WidgetStateProperty.all(const Color(0xFF16191E)),
+        trackBorderColor: WidgetStateProperty.all(const Color(0xFF282F3B)),
       ),
     );
   }

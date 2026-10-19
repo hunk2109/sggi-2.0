@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
 
@@ -49,10 +49,26 @@ class StorageService {
     await _prefs.remove(_userKey);
   }
 
+  // Permissions
+  static const String _permissionsKey = 'sggi_auth_permissions';
+
+  Future<void> savePermissions(List<String> permissions) async {
+    await _prefs.setStringList(_permissionsKey, permissions);
+  }
+
+  List<String> getPermissions() {
+    return _prefs.getStringList(_permissionsKey) ?? [];
+  }
+
+  Future<void> removePermissions() async {
+    await _prefs.remove(_permissionsKey);
+  }
+
   // Clear All Session
   Future<void> clearSession() async {
     await removeToken();
     await removeUser();
+    await removePermissions();
   }
 
   // Theme

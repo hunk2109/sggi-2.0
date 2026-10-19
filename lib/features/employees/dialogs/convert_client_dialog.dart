@@ -40,7 +40,7 @@ class _ConvertClientDialogState extends ConsumerState<ConvertClientDialog> {
     {'value': 'receptionist', 'label': 'Recepcionista'},
     {'value': 'trainer', 'label': 'Entrenador / Instructor'},
     {'value': 'supervisor', 'label': 'Supervisor / Encargado'},
-    {'value': 'manager', 'label': 'Gerente / Administrador'},
+    {'value': 'manager', 'label': 'Gerente de Sucursal'},
     {'value': 'nutritionist', 'label': 'Nutricionista'},
     {'value': 'cleaner', 'label': 'Limpieza / Mantenimiento'},
   ];

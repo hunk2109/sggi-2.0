@@ -47,8 +47,9 @@ class MembersState {
   });
 
   List<MemberModel> get filteredMembers {
-    if (filter == 'all') return members;
-    return members.where((m) {
+    final list = members.where((m) => !m.isAdmin).toList();
+    if (filter == 'all') return list;
+    return list.where((m) {
       if (filter == 'active') return !m.isExpired && m.hasMembership && !m.isSuspended;
       if (filter == 'expired') return m.isExpired || !m.hasMembership;
       if (filter == 'pending') return m.hasPendingPayment;
@@ -99,18 +100,20 @@ class MembersNotifier extends Notifier<MembersState> {
       final q = state.searchQuery.trim();
       if (q.isNotEmpty) {
         final results = await service.searchMembers(q);
+        final nonAdminResults = results.where((m) => !m.isAdmin).toList();
         state = state.copyWith(
           isLoading: false,
-          members: results,
-          total: results.length,
+          members: nonAdminResults,
+          total: nonAdminResults.length,
           currentPage: 1,
           totalPages: 1,
         );
       } else {
         final result = await service.getMembers(page: page, limit: 25);
+        final nonAdminMembers = result.members.where((m) => !m.isAdmin).toList();
         state = state.copyWith(
           isLoading: false,
-          members: result.members,
+          members: nonAdminMembers,
           total: result.total,
           currentPage: page,
           totalPages: result.totalPages,

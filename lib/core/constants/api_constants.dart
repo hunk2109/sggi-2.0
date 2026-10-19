@@ -3,6 +3,9 @@ class ApiConstants {
   static const Duration connectTimeout = Duration(seconds: 30);
   static const Duration receiveTimeout = Duration(seconds: 30);
 
+  // Health endpoint
+  static const String health = '/health';
+
   // Auth endpoints
   static const String login = '/auth/login';
   static const String logout = '/auth/logout';

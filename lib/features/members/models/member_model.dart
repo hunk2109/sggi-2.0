@@ -19,6 +19,7 @@ class MemberModel {
   final String? activePlanName;
   final DateTime? membershipEndDate;
   final bool isSuspended;
+  final String? role;
 
   MemberModel({
     required this.id,
@@ -41,7 +42,10 @@ class MemberModel {
     this.activePlanName,
     this.membershipEndDate,
     this.isSuspended = false,
+    this.role,
   });
+
+  bool get isAdmin => role?.toLowerCase() == 'admin';
 
   String get fullName => '$firstName $lastName'.trim();
   String get displayCode => memberCode?.isNotEmpty == true ? memberCode! : 'S/C';
@@ -155,6 +159,7 @@ class MemberModel {
       activePlanName: planName,
       membershipEndDate: endDate,
       isSuspended: json['isMembershipSuspended'] == true || json['isMembershipSuspended'] == 1,
+      role: userMap?['role']?.toString() ?? json['role']?.toString(),
     );
   }
 

@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/api_constants.dart';
+import '../../../core/constants/app_permissions.dart';
 import '../../../core/models/user_model.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/storage/storage_service.dart';
@@ -20,25 +21,36 @@ class AuthState {
   final UserModel? user;
   final String? error;
   final bool isAuthenticated;
+  final Set<String> permissions;
 
   const AuthState({
     this.isLoading = false,
     this.user,
     this.error,
     this.isAuthenticated = false,
+    this.permissions = const {},
   });
+
+  /// Retorna si el usuario tiene un permiso específico.
+  /// Si el rol es admin, siempre tiene acceso total.
+  bool hasPermission(String permId) {
+    if (user?.role == UserRole.admin) return true;
+    return permissions.contains(permId);
+  }
 
   AuthState copyWith({
     bool? isLoading,
     UserModel? user,
     String? error,
     bool? isAuthenticated,
+    Set<String>? permissions,
   }) {
     return AuthState(
       isLoading: isLoading ?? this.isLoading,
       user: user ?? this.user,
       error: error,
       isAuthenticated: isAuthenticated ?? this.isAuthenticated,
+      permissions: permissions ?? this.permissions,
     );
   }
 }
@@ -49,11 +61,54 @@ class AuthNotifier extends Notifier<AuthState> {
     final storage = ref.read(storageServiceProvider);
     final token = storage.getToken();
     final user = storage.getUser();
+    final storedPerms = storage.getPermissions();
 
     if (token != null && user != null) {
-      return AuthState(user: user, isAuthenticated: true);
+      Set<String> perms = Set<String>.from(storedPerms);
+      if (perms.isEmpty) {
+        perms = Set<String>.from(AppPermissions.defaultRolePermissions[user.role] ?? []);
+      }
+      // Sincronizar permisos frescos del backend en segundo plano
+      Future.microtask(() => fetchPermissions());
+      return AuthState(
+        user: user,
+        isAuthenticated: true,
+        permissions: perms,
+      );
     }
     return const AuthState();
+  }
+
+  /// Sincroniza los permisos dinámicos asignados desde el backend
+  Future<void> fetchPermissions() async {
+    final user = state.user;
+    if (user == null) return;
+
+    final storage = ref.read(storageServiceProvider);
+    final apiClient = ref.read(apiClientProvider);
+
+    try {
+      final response = await apiClient.dio.get('${ApiConstants.userRoles}/permissions/my-permissions');
+      final payload = response.data;
+      dynamic data = payload;
+      if (payload is Map && payload.containsKey('data')) {
+        data = payload['data'];
+      }
+
+      List<String> permsList = [];
+      if (data is List) {
+        permsList = data.map((e) => e.toString()).toList();
+      }
+
+      await storage.savePermissions(permsList);
+      state = state.copyWith(permissions: Set<String>.from(permsList));
+    } catch (_) {
+      // Solo recurrir a permisos por defecto si no hay ningún permiso previo cargado
+      if (state.permissions.isEmpty) {
+        final fallback = AppPermissions.defaultRolePermissions[user.role] ?? [];
+        state = state.copyWith(permissions: Set<String>.from(fallback));
+      }
+    }
   }
 
   Future<bool> login(String email, String password) async {
@@ -98,10 +153,30 @@ class AuthNotifier extends Notifier<AuthState> {
       await storage.saveToken(token);
       await storage.saveUser(user);
 
+      // Cargar permisos inmediatamente desde backend
+      Set<String> initialPerms = Set<String>.from(AppPermissions.defaultRolePermissions[user.role] ?? []);
+      try {
+        final permRes = await apiClient.dio.get('${ApiConstants.userRoles}/permissions/my-permissions');
+        final pPayload = permRes.data;
+        dynamic pData;
+        if (pPayload is Map && pPayload.containsKey('data')) {
+          pData = pPayload['data'];
+        } else {
+          pData = pPayload;
+        }
+        if (pData is List) {
+          initialPerms = pData.map((e) => e.toString()).toSet();
+          await storage.savePermissions(initialPerms.toList());
+        }
+      } catch (_) {
+        await storage.savePermissions(initialPerms.toList());
+      }
+
       state = state.copyWith(
         isLoading: false,
         user: user,
         isAuthenticated: true,
+        permissions: initialPerms,
       );
       return true;
     } on DioException catch (e) {

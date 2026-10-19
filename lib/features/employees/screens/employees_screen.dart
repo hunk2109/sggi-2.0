@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../../../../core/constants/app_permissions.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/app_table_scroll_view.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../dialogs/employee_form_dialog.dart';
 import '../dialogs/convert_client_dialog.dart';
 import '../models/employee_model.dart';
@@ -227,47 +230,57 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen> with SingleTi
 
   @override
   Widget build(BuildContext context) {
+    final auth = ref.watch(authProvider);
+    final canPayroll = auth.hasPermission(AppPermissions.employeesPayroll);
+    final canManage = auth.hasPermission(AppPermissions.employeesManage);
+    final canAssignRole = auth.hasPermission(AppPermissions.employeesAssignRole);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Top Header with Tabs
+        // Top Navigation Hub Tabs
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          decoration: BoxDecoration(
-            color: const Color(0xFF15181E),
-            border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
-          ),
-          child: Row(
-            children: [
-              Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1E232B),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: TabBar(
-                  controller: _tabController,
-                  isScrollable: true,
-                  indicator: BoxDecoration(
-                    color: AppTheme.primary,
-                    borderRadius: BorderRadius.circular(8),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+          child: Container(
+            height: 46,
+            decoration: BoxDecoration(
+              color: const Color(0xFF16191E),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFF282F3B)),
+            ),
+            child: TabBar(
+              controller: _tabController,
+              indicatorColor: AppTheme.primary,
+              indicatorSize: TabBarIndicatorSize.tab,
+              dividerColor: Colors.transparent,
+              labelColor: Colors.white,
+              unselectedLabelColor: Colors.white54,
+              tabs: [
+                const Tab(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.badge_outlined, size: 18),
+                      SizedBox(width: 8),
+                      Text('Personal & Empleados', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    ],
                   ),
-                  labelColor: Colors.white,
-                  unselectedLabelColor: Colors.white60,
-                  labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                  dividerColor: Colors.transparent,
-                  tabs: const [
-                    Tab(
-                      icon: Icon(Icons.badge_outlined, size: 18),
-                      text: 'Personal & Empleados',
-                    ),
-                    Tab(
-                      icon: Icon(Icons.payments_outlined, size: 18),
-                      text: 'Nómina Mensual',
-                    ),
-                  ],
                 ),
-              ),
-            ],
+                Tab(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(canPayroll ? Icons.payments_outlined : Icons.lock_outline, size: 18, color: canPayroll ? null : Colors.white38),
+                      const SizedBox(width: 8),
+                      Text(
+                        canPayroll ? 'Nómina Mensual' : 'Nómina (Restringido)',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: canPayroll ? null : Colors.white38),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
 
@@ -276,8 +289,8 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen> with SingleTi
           child: TabBarView(
             controller: _tabController,
             children: [
-              _buildEmployeesTab(),
-              _buildPayrollTab(),
+              _buildEmployeesTab(canManage: canManage, canAssignRole: canAssignRole),
+              canPayroll ? _buildPayrollTab() : _buildPayrollRestrictedPlaceholder(),
             ],
           ),
         ),
@@ -285,7 +298,39 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen> with SingleTi
     );
   }
 
-  Widget _buildEmployeesTab() {
+  Widget _buildPayrollRestrictedPlaceholder() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.04),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.shield_outlined, size: 56, color: Colors.amberAccent),
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'Acceso Restringido a Nómina',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+          ),
+          const SizedBox(height: 8),
+          const SizedBox(
+            width: 440,
+            child: Text(
+              'Su rol de usuario no cuenta con el permiso para calcular, ver montos de sueldos o autorizar pagos de nómina (employees:payroll).',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: Colors.white54, height: 1.4),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmployeesTab({required bool canManage, required bool canAssignRole}) {
     final state = ref.watch(employeesProvider);
     final notifier = ref.read(employeesProvider.notifier);
 
@@ -374,24 +419,27 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen> with SingleTi
               ),
               const SizedBox(width: 6),
 
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  side: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              if (canAssignRole) ...[
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  icon: const Icon(Icons.badge_outlined, size: 18, color: Colors.amberAccent),
+                  label: const Text('Convertir Socio a Empleado'),
+                  onPressed: () => ConvertClientDialog.show(context),
                 ),
-                icon: const Icon(Icons.badge_outlined, size: 18, color: Colors.amberAccent),
-                label: const Text('Convertir Socio a Empleado'),
-                onPressed: () => ConvertClientDialog.show(context),
-              ),
-              const SizedBox(width: 8),
+                const SizedBox(width: 8),
+              ],
 
-              ElevatedButton.icon(
-                icon: const Icon(Icons.person_add, size: 18),
-                label: const Text('Nuevo Empleado'),
-                onPressed: _openCreateEmployee,
-              ),
+              if (canManage)
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.person_add, size: 18),
+                  label: const Text('Nuevo Empleado'),
+                  onPressed: _openCreateEmployee,
+                ),
             ],
           ),
 
@@ -419,10 +467,10 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen> with SingleTi
                             ],
                           ),
                         )
-                      : SingleChildScrollView(
-                          child: SizedBox(
-                            width: double.infinity,
-                            child: DataTable(
+                      : AppTableScrollView(
+                          child: DataTable(
+                                    columnSpacing: 20,
+                                    horizontalMargin: 16,
                               headingRowHeight: 44,
                               dataRowMinHeight: 48,
                               dataRowMaxHeight: 48,
@@ -483,42 +531,43 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen> with SingleTi
                                       ),
                                     ),
                                     DataCell(
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          IconButton(
-                                            icon: Icon(e.isActive ? Icons.toggle_on : Icons.toggle_off, size: 22),
-                                            tooltip: e.isActive ? 'Desactivar Empleado' : 'Activar Empleado',
-                                            color: e.isActive ? Colors.greenAccent : Colors.white38,
-                                            onPressed: () => notifier.toggleActive(e.id),
-                                          ),
-                                          IconButton(
-                                            icon: const Icon(Icons.send_outlined, size: 18),
-                                            tooltip: 'Reenviar Credenciales (Correo y WhatsApp)',
-                                            color: Colors.blueAccent,
-                                            onPressed: () => _handleSendCredentials(e),
-                                          ),
-                                          IconButton(
-                                            icon: const Icon(Icons.edit_outlined, size: 18),
-                                            tooltip: 'Editar Empleado',
-                                            color: Colors.white70,
-                                            onPressed: () => _openEditEmployee(e),
-                                          ),
-                                          IconButton(
-                                            icon: const Icon(Icons.delete_outline, size: 18),
-                                            tooltip: 'Eliminar Empleado',
-                                            color: Colors.redAccent.withValues(alpha: 0.7),
-                                            onPressed: () => _confirmDeleteEmployee(e),
-                                          ),
-                                        ],
-                                      ),
+                                      canManage
+                                          ? Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                IconButton(
+                                                  icon: Icon(e.isActive ? Icons.toggle_on : Icons.toggle_off, size: 22),
+                                                  tooltip: e.isActive ? 'Desactivar Empleado' : 'Activar Empleado',
+                                                  color: e.isActive ? Colors.greenAccent : Colors.white38,
+                                                  onPressed: () => notifier.toggleActive(e.id),
+                                                ),
+                                                IconButton(
+                                                  icon: const Icon(Icons.send_outlined, size: 18),
+                                                  tooltip: 'Reenviar Credenciales (Correo y WhatsApp)',
+                                                  color: Colors.blueAccent,
+                                                  onPressed: () => _handleSendCredentials(e),
+                                                ),
+                                                IconButton(
+                                                  icon: const Icon(Icons.edit_outlined, size: 18),
+                                                  tooltip: 'Editar Empleado',
+                                                  color: Colors.white70,
+                                                  onPressed: () => _openEditEmployee(e),
+                                                ),
+                                                IconButton(
+                                                  icon: const Icon(Icons.delete_outline, size: 18),
+                                                  tooltip: 'Eliminar Empleado',
+                                                  color: Colors.redAccent.withValues(alpha: 0.7),
+                                                  onPressed: () => _confirmDeleteEmployee(e),
+                                                ),
+                                              ],
+                                            )
+                                          : const Text('-', style: TextStyle(color: Colors.white38)),
                                     ),
                                   ],
                                 );
                               }).toList(),
-                            ),
-                          ),
-                        ),
+                                  ),
+                                ),
             ),
           ),
         ],
@@ -697,10 +746,10 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen> with SingleTi
                             ],
                           ),
                         )
-                      : SingleChildScrollView(
-                          child: SizedBox(
-                            width: double.infinity,
-                            child: DataTable(
+                      : AppTableScrollView(
+                          child: DataTable(
+                                    columnSpacing: 20,
+                                    horizontalMargin: 16,
                               headingRowHeight: 44,
                               dataRowMinHeight: 48,
                               dataRowMaxHeight: 48,
@@ -759,9 +808,8 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen> with SingleTi
                                   ],
                                 );
                               }).toList(),
-                            ),
-                          ),
-                        ),
+                                  ),
+                                ),
             ),
           ),
         ],

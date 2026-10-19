@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../../../../core/constants/app_permissions.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../../cash_register/dialogs/open_cash_dialog.dart';
 import '../../cash_register/providers/cash_register_provider.dart';
 import '../../members/models/member_model.dart';
@@ -224,6 +226,9 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     final notifier = ref.read(posProvider.notifier);
     final cashState = ref.watch(cashRegisterProvider);
     final isRegisterOpen = cashState.isRegisterOpen;
+    final authState = ref.watch(authProvider);
+    final canSell = authState.hasPermission(AppPermissions.posSell);
+    final canOpenCash = authState.hasPermission(AppPermissions.cashOpen);
 
     return Padding(
       padding: const EdgeInsets.all(20),
@@ -266,16 +271,32 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.lock_open, size: 16),
-                    label: const Text('Abrir Turno / Caja'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.success,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                  if (canOpenCash)
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.lock_open, size: 16),
+                      label: const Text('Abrir Turno / Caja'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.success,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                      ),
+                      onPressed: _openOpenCashDialog,
+                    )
+                  else
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white10,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.lock_outline, size: 16, color: Colors.white38),
+                          SizedBox(width: 6),
+                          Text('Sin permiso para abrir caja', style: TextStyle(color: Colors.white38, fontSize: 12)),
+                        ],
+                      ),
                     ),
-                    onPressed: _openOpenCashDialog,
-                  ),
                 ],
               ),
             ),
@@ -372,7 +393,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                               itemCount: state.filteredProducts.length,
                               itemBuilder: (context, index) {
                                 final product = state.filteredProducts[index];
-                                return _buildProductCard(product, notifier, isRegisterOpen);
+                                return _buildProductCard(product, notifier, isRegisterOpen, canSell);
                               },
                             ),
                 ),
@@ -626,24 +647,30 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                           icon: state.isProcessingSale
                               ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                               : Icon(
-                                  isRegisterOpen ? Icons.check_circle_outline : Icons.lock_outline,
+                                  !isRegisterOpen
+                                      ? Icons.lock_outline
+                                      : (!canSell ? Icons.block : Icons.check_circle_outline),
                                   size: 20,
                                 ),
                           label: Text(
                             state.isProcessingSale
                                 ? 'Procesando...'
                                 : !isRegisterOpen
-                                    ? 'CAJA CERRADA • INICIAR TURNO'
-                                    : 'COBRAR ${_currency.format(state.total)}',
-                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                                    ? (canOpenCash ? 'CAJA CERRADA • INICIAR TURNO' : 'CAJA CERRADA (Sin permiso para abrir)')
+                                    : (!canSell
+                                        ? 'SIN PERMISO PARA REGISTRAR VENTAS'
+                                        : 'COBRAR ${_currency.format(state.total)}'),
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                           ),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: !isRegisterOpen ? Colors.red.shade900 : AppTheme.success,
+                            backgroundColor: !isRegisterOpen
+                                ? (canOpenCash ? Colors.red.shade900 : Colors.white12)
+                                : (!canSell ? Colors.white12 : AppTheme.success),
                             foregroundColor: Colors.white,
                           ),
                           onPressed: !isRegisterOpen
-                              ? _openOpenCashDialog
-                              : (state.cart.isEmpty || state.isProcessingSale)
+                              ? (canOpenCash ? _openOpenCashDialog : null)
+                              : (!canSell || state.cart.isEmpty || state.isProcessingSale)
                                   ? null
                                   : _handleCheckout,
                         ),
@@ -662,7 +689,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
 );
   }
 
-  Widget _buildProductCard(ProductModel product, PosNotifier notifier, bool isRegisterOpen) {
+  Widget _buildProductCard(ProductModel product, PosNotifier notifier, bool isRegisterOpen, bool canSell) {
     final hasStock = product.inStock;
 
     return Material(
@@ -690,7 +717,22 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                   ),
                 );
               }
-            : (hasStock ? () => notifier.addToCart(product) : null),
+            : (!canSell
+                ? () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Row(
+                          children: [
+                            Icon(Icons.shield_outlined, color: Colors.white, size: 18),
+                            SizedBox(width: 8),
+                            Expanded(child: Text('No tiene permisos para registrar ventas en mostrador.')),
+                          ],
+                        ),
+                        backgroundColor: AppTheme.error,
+                      ),
+                    );
+                  }
+                : (hasStock ? () => notifier.addToCart(product) : null)),
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../../../../core/constants/app_permissions.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/app_table_scroll_view.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../dialogs/product_form_dialog.dart';
 import '../dialogs/stock_adjustment_dialog.dart';
 import '../models/inventory_product_model.dart';
@@ -86,6 +89,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(inventoryProvider);
     final notifier = ref.read(inventoryProvider.notifier);
+    final auth = ref.watch(authProvider);
+    final canCreate = auth.hasPermission(AppPermissions.inventoryCreate);
+    final canAdjustStock = auth.hasPermission(AppPermissions.inventoryAdjustStock);
+    final canEdit = auth.hasPermission(AppPermissions.inventoryEdit);
+    final canDelete = auth.hasPermission(AppPermissions.inventoryDelete);
 
     return Padding(
       padding: const EdgeInsets.all(20),
@@ -172,11 +180,12 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
               ),
               const SizedBox(width: 6),
 
-              ElevatedButton.icon(
-                icon: const Icon(Icons.add_box, size: 18),
-                label: const Text('Nuevo Producto'),
-                onPressed: _openCreateProduct,
-              ),
+              if (canCreate)
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.add_box, size: 18),
+                  label: const Text('Nuevo Producto'),
+                  onPressed: _openCreateProduct,
+                ),
             ],
           ),
 
@@ -204,79 +213,89 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                             ],
                           ),
                         )
-                      : SingleChildScrollView(
-                          child: SizedBox(
-                            width: double.infinity,
-                            child: DataTable(
-                              headingRowHeight: 44,
-                              dataRowMinHeight: 48,
-                              dataRowMaxHeight: 48,
-                              columns: const [
-                                DataColumn(label: Text('Producto', style: TextStyle(fontWeight: FontWeight.bold))),
-                                DataColumn(label: Text('Categoría', style: TextStyle(fontWeight: FontWeight.bold))),
-                                DataColumn(label: Text('Precio Venta', style: TextStyle(fontWeight: FontWeight.bold))),
-                                DataColumn(label: Text('Costo', style: TextStyle(fontWeight: FontWeight.bold))),
-                                DataColumn(label: Text('Stock', style: TextStyle(fontWeight: FontWeight.bold))),
-                                DataColumn(label: Text('Estado', style: TextStyle(fontWeight: FontWeight.bold))),
-                                DataColumn(label: Text('Acciones', style: TextStyle(fontWeight: FontWeight.bold))),
-                              ],
-                              rows: state.filteredProducts.map((p) {
-                                return DataRow(
-                                  cells: [
-                                    DataCell(
-                                      Text(p.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                                    ),
-                                    DataCell(
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                        decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(4)),
-                                        child: Text(p.category, style: const TextStyle(fontSize: 11, color: Colors.white70)),
-                                      ),
-                                    ),
-                                    DataCell(Text(_currency.format(p.price), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.greenAccent))),
-                                    DataCell(Text(_currency.format(p.cost), style: const TextStyle(color: Colors.white60, fontSize: 12))),
-                                    DataCell(
-                                      Text(
-                                        '${p.quantityAvailable}',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 13,
-                                          color: p.isOutOfStock ? Colors.redAccent : (p.isLowStock ? Colors.amber : Colors.white),
-                                        ),
-                                      ),
-                                    ),
-                                    DataCell(_buildStockBadge(p)),
-                                    DataCell(
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          IconButton(
-                                            icon: const Icon(Icons.swap_vert, size: 18),
-                                            tooltip: 'Ajustar Stock (+/-)',
-                                            color: AppTheme.primary,
-                                            onPressed: () => _openStockAdjustment(p),
+                      : AppTableScrollView(
+                          child: DataTable(
+                                    headingRowHeight: 44,
+                                    dataRowMinHeight: 48,
+                                    dataRowMaxHeight: 48,
+                                    columnSpacing: 20,
+                                    horizontalMargin: 16,
+                                    columns: const [
+                                      DataColumn(label: Text('Producto', style: TextStyle(fontWeight: FontWeight.bold))),
+                                      DataColumn(label: Text('Categoría', style: TextStyle(fontWeight: FontWeight.bold))),
+                                      DataColumn(label: Text('Precio Venta', style: TextStyle(fontWeight: FontWeight.bold))),
+                                      DataColumn(label: Text('Costo', style: TextStyle(fontWeight: FontWeight.bold))),
+                                      DataColumn(label: Text('Stock', style: TextStyle(fontWeight: FontWeight.bold))),
+                                      DataColumn(label: Text('Estado', style: TextStyle(fontWeight: FontWeight.bold))),
+                                      DataColumn(label: Text('Acciones', style: TextStyle(fontWeight: FontWeight.bold))),
+                                    ],
+                                    rows: state.filteredProducts.map((p) {
+                                      return DataRow(
+                                        cells: [
+                                          DataCell(
+                                            Text(p.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
                                           ),
-                                          IconButton(
-                                            icon: const Icon(Icons.edit_outlined, size: 18),
-                                            tooltip: 'Editar Producto',
-                                            color: Colors.white70,
-                                            onPressed: () => _openEditProduct(p),
+                                          DataCell(
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                              decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(4)),
+                                              child: Text(p.category, style: const TextStyle(fontSize: 11, color: Colors.white70)),
+                                            ),
                                           ),
-                                          IconButton(
-                                            icon: const Icon(Icons.delete_outline, size: 18),
-                                            tooltip: 'Eliminar Producto',
-                                            color: Colors.redAccent.withValues(alpha: 0.7),
-                                            onPressed: () => _confirmDeleteProduct(p),
+                                          DataCell(Text(_currency.format(p.price), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.greenAccent))),
+                                          DataCell(Text(_currency.format(p.cost), style: const TextStyle(color: Colors.white60, fontSize: 12))),
+                                          DataCell(
+                                            Text(
+                                              '${p.quantityAvailable}',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 13,
+                                                color: p.isOutOfStock ? Colors.redAccent : (p.isLowStock ? Colors.amber : Colors.white),
+                                              ),
+                                            ),
+                                          ),
+                                          DataCell(_buildStockBadge(p)),
+                                          DataCell(
+                                            Builder(
+                                              builder: (context) {
+                                                final hasAny = canAdjustStock || canEdit || canDelete;
+                                                if (!hasAny) {
+                                                  return const Text('-', style: TextStyle(color: Colors.white38));
+                                                }
+                                                return Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    if (canAdjustStock)
+                                                      IconButton(
+                                                        icon: const Icon(Icons.swap_vert, size: 18),
+                                                        tooltip: 'Ajustar Stock (+/-)',
+                                                        color: AppTheme.primary,
+                                                        onPressed: () => _openStockAdjustment(p),
+                                                      ),
+                                                    if (canEdit)
+                                                      IconButton(
+                                                        icon: const Icon(Icons.edit_outlined, size: 18),
+                                                        tooltip: 'Editar Producto',
+                                                        color: Colors.white70,
+                                                        onPressed: () => _openEditProduct(p),
+                                                      ),
+                                                    if (canDelete)
+                                                      IconButton(
+                                                        icon: const Icon(Icons.delete_outline, size: 18),
+                                                        tooltip: 'Eliminar Producto',
+                                                        color: Colors.redAccent.withValues(alpha: 0.7),
+                                                        onPressed: () => _confirmDeleteProduct(p),
+                                                      ),
+                                                  ],
+                                                );
+                                              },
+                                            ),
                                           ),
                                         ],
-                                      ),
-                                    ),
-                                  ],
-                                );
-                              }).toList(),
-                            ),
-                          ),
-                        ),
+                                      );
+                                    }).toList(),
+                                  ),
+                                ),
             ),
           ),
         ],

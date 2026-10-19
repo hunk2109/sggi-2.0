@@ -1,6 +1,7 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/network/backend_status_provider.dart';
 import '../providers/auth_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -45,6 +46,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
+    final backendStatus = ref.watch(backendStatusProvider);
 
     return Scaffold(
       body: Row(
@@ -130,22 +132,46 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                     ],
                   ),
-                  Row(
-                    children: [
-                      Container(
-                        width: 10,
-                        height: 10,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF107C41),
-                          shape: BoxShape.circle,
-                        ),
+                  InkWell(
+                    onTap: () => ref.read(backendStatusProvider.notifier).checkHealth(),
+                    borderRadius: BorderRadius.circular(4),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 10,
+                            height: 10,
+                            decoration: BoxDecoration(
+                              color: backendStatus.isOnline
+                                  ? const Color(0xFF107C41)
+                                  : backendStatus.isChecking
+                                      ? Colors.amber
+                                      : Colors.redAccent,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            backendStatus.isOnline
+                                ? 'Backend: localhost:3000 (Activo)'
+                                : backendStatus.isChecking
+                                    ? 'Backend: Conectando...'
+                                    : 'Backend: Desconectado',
+                            style: TextStyle(
+                              color: backendStatus.isOnline
+                                  ? Colors.white70
+                                  : backendStatus.isChecking
+                                      ? Colors.amber.shade200
+                                      : Colors.red.shade300,
+                              fontSize: 13,
+                              fontWeight: backendStatus.isOnline ? FontWeight.normal : FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'Backend: localhost:3000 (Activo)',
-                        style: TextStyle(color: Colors.white70, fontSize: 13),
-                      ),
-                    ],
+                    ),
                   ),
                 ],
               ),

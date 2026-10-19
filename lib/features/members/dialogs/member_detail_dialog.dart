@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../../../../core/constants/app_permissions.dart';
 import '../../../../core/services/receipt_printing_service.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/app_table_scroll_view.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../../memberships/models/group_model.dart';
 import '../../memberships/providers/group_provider.dart';
 import '../../settings/providers/settings_provider.dart';
@@ -281,26 +284,43 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
         ),
 
         // Action Buttons
-        ElevatedButton.icon(
-          icon: const Icon(Icons.credit_card, size: 16),
-          label: const Text('Renovar Plan'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppTheme.primary,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          ),
-          onPressed: _openAssignMembership,
+        Builder(
+          builder: (context) {
+            final auth = ref.watch(authProvider);
+            final canAssign = auth.hasPermission(AppPermissions.membersAssignMembership);
+            final canEdit = auth.hasPermission(AppPermissions.membersEdit);
+
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (canAssign) ...[
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.credit_card, size: 16),
+                    label: const Text('Renovar Plan'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    ),
+                    onPressed: _openAssignMembership,
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                if (canEdit) ...[
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.edit_outlined, size: 16),
+                    label: const Text('Editar'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    ),
+                    onPressed: _openEditMember,
+                  ),
+                  const SizedBox(width: 8),
+                ],
+              ],
+            );
+          },
         ),
-        const SizedBox(width: 8),
-        OutlinedButton.icon(
-          icon: const Icon(Icons.edit_outlined, size: 16),
-          label: const Text('Editar'),
-          style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          ),
-          onPressed: _openEditMember,
-        ),
-        const SizedBox(width: 8),
         IconButton(
           icon: const Icon(Icons.close, size: 20),
           onPressed: () => Navigator.of(context).pop(),
@@ -457,6 +477,10 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
 
   // TAB 1: Membresías
   Widget _buildMembershipsTab() {
+    final authState = ref.watch(authProvider);
+    final canAssign = authState.hasPermission(AppPermissions.membersAssignMembership);
+    final canCancel = authState.hasPermission(AppPermissions.membersCancelMembership);
+
     if (_membershipsHistory.isEmpty) {
       return Center(
         child: Column(
@@ -465,12 +489,14 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
             const Icon(Icons.card_membership_outlined, size: 48, color: Colors.white24),
             const SizedBox(height: 12),
             const Text('No hay historial de membresías para este socio.', style: TextStyle(color: Colors.white54)),
-            const SizedBox(height: 14),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.add, size: 16),
-              label: const Text('Asignar Primera Membresía'),
-              onPressed: _openAssignMembership,
-            ),
+            if (canAssign) ...[
+              const SizedBox(height: 14),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('Asignar Primera Membresía'),
+                onPressed: _openAssignMembership,
+              ),
+            ],
           ],
         ),
       );
@@ -478,12 +504,10 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
 
     return Padding(
       padding: const EdgeInsets.only(top: 12),
-      child: SingleChildScrollView(
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: DataTable(
-            columnSpacing: 18,
-            horizontalMargin: 12,
+      child: AppTableScrollView(
+        child: DataTable(
+                  columnSpacing: 18,
+                  horizontalMargin: 12,
             headingRowHeight: 40,
             dataRowMinHeight: 46,
             dataRowMaxHeight: 46,
@@ -537,17 +561,22 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
                   ),
                   DataCell(
                     isActive
-                        ? ElevatedButton.icon(
-                            icon: const Icon(Icons.cancel_outlined, size: 14),
-                            label: const Text('Cancelar', style: TextStyle(fontSize: 11)),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.redAccent.shade700,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              minimumSize: const Size(0, 28),
-                            ),
-                            onPressed: () => _openCancelMembershipDialog(m),
-                          )
+                        ? (canCancel
+                            ? ElevatedButton.icon(
+                                icon: const Icon(Icons.cancel_outlined, size: 14),
+                                label: const Text('Cancelar', style: TextStyle(fontSize: 11)),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.redAccent.shade700,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  minimumSize: const Size(0, 28),
+                                ),
+                                onPressed: () => _openCancelMembershipDialog(m),
+                              )
+                            : const Tooltip(
+                                message: 'Sin permiso para cancelar membresía',
+                                child: Icon(Icons.lock_outline, size: 16, color: Colors.white38),
+                              ))
                         : const Text('-', style: TextStyle(color: Colors.white38)),
                   ),
                 ],
@@ -555,8 +584,7 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
             }).toList(),
           ),
         ),
-      ),
-    );
+      );
   }
 
   // TAB 2: Pagos
@@ -578,10 +606,10 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
 
     return Padding(
       padding: const EdgeInsets.only(top: 12),
-      child: SingleChildScrollView(
-        child: SizedBox(
-          width: double.infinity,
-          child: DataTable(
+      child: AppTableScrollView(
+        child: DataTable(
+                  columnSpacing: 18,
+                  horizontalMargin: 12,
             headingRowHeight: 40,
             dataRowMinHeight: 46,
             dataRowMaxHeight: 46,
@@ -612,16 +640,18 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
                   DataCell(_buildPaymentStatusBadge(status)),
                   DataCell(
                     isPending && paymentId.isNotEmpty
-                        ? ElevatedButton.icon(
-                            icon: const Icon(Icons.point_of_sale, size: 14),
-                            label: const Text('Cobrar', style: TextStyle(fontSize: 11)),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppTheme.success,
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              minimumSize: const Size(0, 28),
-                            ),
-                            onPressed: () => _openPayDialog(paymentId, amount),
-                          )
+                        ? (ref.watch(authProvider).hasPermission(AppPermissions.membersAssignMembership)
+                            ? ElevatedButton.icon(
+                                icon: const Icon(Icons.point_of_sale, size: 14),
+                                label: const Text('Cobrar', style: TextStyle(fontSize: 11)),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppTheme.success,
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  minimumSize: const Size(0, 28),
+                                ),
+                                onPressed: () => _openPayDialog(paymentId, amount),
+                              )
+                            : const Text('Pendiente', style: TextStyle(fontSize: 11, color: Colors.amberAccent)))
                         : OutlinedButton.icon(
                             icon: const Icon(Icons.print_outlined, size: 14),
                             label: const Text('Recibo', style: TextStyle(fontSize: 11)),
@@ -639,8 +669,7 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
             }).toList(),
           ),
         ),
-      ),
-    );
+      );
   }
 
   Future<void> _printPaymentReceipt(Map<String, dynamic> payment) async {
@@ -847,6 +876,7 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
 
     if (confirmed == true) {
       final s = ref.read(memberServiceProvider);
+      setState(() => _isLoadingData = true);
       try {
         final res = await s.removeMembership(
           _currentMember.id,
@@ -859,10 +889,11 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
             backgroundColor: AppTheme.success,
           ),
         );
-        _loadAllHistory();
+        await _loadAllHistory();
         ref.read(membersProvider.notifier).loadMembers();
       } catch (e) {
         if (!mounted) return;
+        setState(() => _isLoadingData = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.error),
         );
@@ -943,10 +974,10 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
 
     return Padding(
       padding: const EdgeInsets.only(top: 12),
-      child: SingleChildScrollView(
-        child: SizedBox(
-          width: double.infinity,
-          child: DataTable(
+      child: AppTableScrollView(
+        child: DataTable(
+                  columnSpacing: 18,
+                  horizontalMargin: 12,
             headingRowHeight: 40,
             dataRowMinHeight: 46,
             dataRowMaxHeight: 46,
@@ -999,8 +1030,7 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
             }).toList(),
           ),
         ),
-      ),
-    );
+      );
   }
 
   // TAB 4: Datos Personales

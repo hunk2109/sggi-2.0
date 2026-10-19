@@ -15,6 +15,7 @@ import '../widgets/create_promotion_dialog.dart';
 import '../widgets/roles_permissions_tab.dart';
 import '../widgets/select_report_recipients_dialog.dart';
 import '../widgets/license_info_tab.dart';
+import '../../auth/providers/auth_provider.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -490,7 +491,9 @@ if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
                   _buildGymSettingsTab(gymState),
                   _buildAutomationTab(gymState),
                   _buildAccessDbTab(),
-                  const RolesPermissionsTab(),
+                  ref.watch(authProvider).user?.role.isAdmin == true
+                      ? const RolesPermissionsTab()
+                      : const _RolesRestrictedPlaceholder(),
                   const LicenseInfoTab(),
                 ],
               ),
@@ -3069,6 +3072,49 @@ if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
           Text('$label: ', style: const TextStyle(fontSize: 11, color: Colors.white70)),
           Text(value, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
         ],
+      ),
+    );
+  }
+}
+
+class _RolesRestrictedPlaceholder extends StatelessWidget {
+  const _RolesRestrictedPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.all(32),
+        constraints: const BoxConstraints(maxWidth: 480),
+        decoration: BoxDecoration(
+          color: AppTheme.darkCard,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppTheme.darkBorder),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.amber.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.security, size: 48, color: Colors.amber),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Acceso Restringido',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'La gestión de roles, permisos y asignación de usuarios requiere privilegios de Administrador.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+            ),
+          ],
+        ),
       ),
     );
   }

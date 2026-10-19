@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/app_table_scroll_view.dart';
 import '../dialogs/assign_membership_dialog.dart';
 import '../dialogs/member_detail_dialog.dart';
 import '../dialogs/new_member_dialog.dart';
 import '../dialogs/pay_fee_dialog.dart';
 import '../models/member_model.dart';
 import '../providers/members_provider.dart';
+import '../../auth/providers/auth_provider.dart';
+import '../../../../core/constants/app_permissions.dart';
 
 class MembersScreen extends ConsumerStatefulWidget {
   const MembersScreen({super.key});
@@ -133,6 +136,11 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(membersProvider);
     final notifier = ref.read(membersProvider.notifier);
+    final authState = ref.watch(authProvider);
+    final canCreate = authState.hasPermission(AppPermissions.membersCreate);
+    final canEdit = authState.hasPermission(AppPermissions.membersEdit);
+    final canDelete = authState.hasPermission(AppPermissions.membersDelete);
+    final canAssign = authState.hasPermission(AppPermissions.membersAssignMembership);
 
     return Padding(
       padding: const EdgeInsets.all(20),
@@ -191,14 +199,15 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
                 tooltip: 'Actualizar lista',
                 onPressed: () => notifier.loadMembers(page: state.currentPage),
               ),
-              const SizedBox(width: 6),
-
-              // New Member Button
-              ElevatedButton.icon(
-                icon: const Icon(Icons.person_add, size: 18),
-                label: const Text('Nuevo Socio'),
-                onPressed: _openNewMemberDialog,
-              ),
+              if (canCreate) ...[
+                const SizedBox(width: 6),
+                // New Member Button
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.person_add, size: 18),
+                  label: const Text('Nuevo Socio'),
+                  onPressed: _openNewMemberDialog,
+                ),
+              ],
             ],
           ),
 
@@ -226,15 +235,8 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
                             ],
                           ),
                         )
-                      : LayoutBuilder(
-                          builder: (context, constraints) {
-                            return SingleChildScrollView(
-                              scrollDirection: Axis.vertical,
-                              child: SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                child: ConstrainedBox(
-                                  constraints: BoxConstraints(minWidth: constraints.maxWidth),
-                                  child: DataTable(
+                      : AppTableScrollView(
+                          child: DataTable(
                                     headingRowHeight: 46,
                                     dataRowMinHeight: 50,
                                     dataRowMaxHeight: 56,
@@ -353,30 +355,33 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
                                                   padding: const EdgeInsets.all(4),
                                                   onPressed: () => _openMemberDetail(member),
                                                 ),
-                                                IconButton(
-                                                  icon: const Icon(Icons.credit_card, size: 18),
-                                                  tooltip: 'Asignar / Renovar Plan',
-                                                  color: AppTheme.primary,
-                                                  constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
-                                                  padding: const EdgeInsets.all(4),
-                                                  onPressed: () => _openAssignMembershipDialog(member),
-                                                ),
-                                                IconButton(
-                                                  icon: const Icon(Icons.edit_outlined, size: 18),
-                                                  tooltip: 'Editar Datos',
-                                                  color: Colors.white70,
-                                                  constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
-                                                  padding: const EdgeInsets.all(4),
-                                                  onPressed: () => _openEditMemberDialog(member),
-                                                ),
-                                                IconButton(
-                                                  icon: const Icon(Icons.delete_outline, size: 18),
-                                                  tooltip: 'Eliminar Socio',
-                                                  color: Colors.redAccent.withValues(alpha: 0.7),
-                                                  constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
-                                                  padding: const EdgeInsets.all(4),
-                                                  onPressed: () => _confirmDeleteMember(member),
-                                                ),
+                                                if (canAssign)
+                                                  IconButton(
+                                                    icon: const Icon(Icons.credit_card, size: 18),
+                                                    tooltip: 'Asignar / Renovar Plan',
+                                                    color: AppTheme.primary,
+                                                    constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                                                    padding: const EdgeInsets.all(4),
+                                                    onPressed: () => _openAssignMembershipDialog(member),
+                                                  ),
+                                                if (canEdit)
+                                                  IconButton(
+                                                    icon: const Icon(Icons.edit_outlined, size: 18),
+                                                    tooltip: 'Editar Datos',
+                                                    color: Colors.white70,
+                                                    constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                                                    padding: const EdgeInsets.all(4),
+                                                    onPressed: () => _openEditMemberDialog(member),
+                                                  ),
+                                                if (canDelete)
+                                                  IconButton(
+                                                    icon: const Icon(Icons.delete_outline, size: 18),
+                                                    tooltip: 'Eliminar Socio',
+                                                    color: Colors.redAccent.withValues(alpha: 0.7),
+                                                    constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                                                    padding: const EdgeInsets.all(4),
+                                                    onPressed: () => _confirmDeleteMember(member),
+                                                  ),
                                               ],
                                             ),
                                           ),
@@ -385,10 +390,6 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
                                     }).toList(),
                                   ),
                                 ),
-                              ),
-                            );
-                          },
-                        ),
             ),
           ),
 

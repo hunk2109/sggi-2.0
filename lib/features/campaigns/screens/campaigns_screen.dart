@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../../../core/constants/app_permissions.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../../members/models/member_model.dart';
 import '../../members/providers/members_provider.dart';
 import '../../memberships/services/promotion_service.dart';
@@ -30,7 +32,7 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> with SingleTi
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(campaignsProvider.notifier).init();
@@ -293,92 +295,170 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> with SingleTi
               color: const Color(0xFF161A22),
               border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.06))),
             ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primary.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.campaign_outlined, color: AppTheme.primaryLight, size: 22),
-                ),
-                const SizedBox(width: 14),
-                const Expanded(
-                  child: Column(
+            child: LayoutBuilder(
+              builder: (context, headerConstraints) {
+                final isNarrow = headerConstraints.maxWidth < 980;
+
+                Widget buildStatusBadge() {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: isWpConnected ? Colors.green.withValues(alpha: 0.15) : Colors.amber.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: isWpConnected ? Colors.green.withValues(alpha: 0.4) : Colors.amber.withValues(alpha: 0.4)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: isWpConnected ? Colors.greenAccent : Colors.amberAccent,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          isWpConnected ? 'WhatsApp Conectado' : 'WhatsApp Desconectado',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: isWpConnected ? Colors.greenAccent : Colors.amberAccent,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                Widget buildTabs() {
+                  return Container(
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF16191E),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFF282F3B)),
+                    ),
+                    child: TabBar(
+                      controller: _tabController,
+                      isScrollable: true,
+                      tabAlignment: TabAlignment.start,
+                      indicatorColor: AppTheme.primary,
+                      indicatorSize: TabBarIndicatorSize.tab,
+                      dividerColor: Colors.transparent,
+                      labelColor: Colors.white,
+                      unselectedLabelColor: Colors.white54,
+                      labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      tabs: const [
+                        Tab(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 14),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.send_outlined, size: 16),
+                                SizedBox(width: 8),
+                                Text('Nueva Campaña'),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Tab(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 14),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.history_outlined, size: 16),
+                                SizedBox(width: 8),
+                                Text('Historial de Envíos'),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                if (isNarrow) {
+                  return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Envíos Masivos & Difusión',
-                        style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.white),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primary.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(Icons.campaign_outlined, color: AppTheme.primaryLight, size: 22),
+                          ),
+                          const SizedBox(width: 14),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Envíos Masivos & Difusión',
+                                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'Comunícate con tus socios vía WhatsApp y Correo.',
+                                  style: TextStyle(fontSize: 11, color: Colors.white54),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          buildStatusBadge(),
+                        ],
                       ),
-                      SizedBox(height: 2),
-                      Text(
-                        'Comunícate con tus socios vía WhatsApp y Correo con plantillas inteligentes y segmentación.',
-                        style: TextStyle(fontSize: 12, color: Colors.white54),
-                      ),
+                      const SizedBox(height: 12),
+                      buildTabs(),
                     ],
-                  ),
-                ),
+                  );
+                }
 
-                // WhatsApp Status Badge
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: isWpConnected ? Colors.green.withValues(alpha: 0.15) : Colors.amber.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: isWpConnected ? Colors.green.withValues(alpha: 0.4) : Colors.amber.withValues(alpha: 0.4)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: isWpConnected ? Colors.greenAccent : Colors.amberAccent,
-                          shape: BoxShape.circle,
-                        ),
+                return Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primary.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      const SizedBox(width: 6),
-                      Text(
-                        isWpConnected ? 'WhatsApp Conectado' : 'WhatsApp Desconectado',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: isWpConnected ? Colors.greenAccent : Colors.amberAccent,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-
-                // Tab Bar
-                Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E232B),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: TabBar(
-                    controller: _tabController,
-                    isScrollable: true,
-                    indicator: BoxDecoration(
-                      color: AppTheme.primary,
-                      borderRadius: BorderRadius.circular(8),
+                      child: const Icon(Icons.campaign_outlined, color: AppTheme.primaryLight, size: 22),
                     ),
-                    labelColor: Colors.white,
-                    unselectedLabelColor: Colors.white60,
-                    labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                    dividerColor: Colors.transparent,
-                    tabs: const [
-                      Tab(icon: Icon(Icons.send_outlined, size: 16), text: 'Nueva Campaña'),
-                      Tab(icon: Icon(Icons.history_outlined, size: 16), text: 'Historial de Envíos'),
-                      Tab(icon: Icon(Icons.auto_stories_outlined, size: 16), text: 'Galería de Plantillas'),
-                    ],
-                  ),
-                ),
-              ],
+                    const SizedBox(width: 14),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Envíos Masivos & Difusión',
+                            style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Comunícate con tus socios vía WhatsApp y Correo con segmentación.',
+                            style: TextStyle(fontSize: 12, color: Colors.white54),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    buildStatusBadge(),
+                    const SizedBox(width: 12),
+                    buildTabs(),
+                  ],
+                );
+              },
             ),
           ),
 
@@ -389,7 +469,6 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> with SingleTi
               children: [
                 _buildNewCampaignTab(),
                 _buildHistoryTab(),
-                _buildTemplatesTab(),
               ],
             ),
           ),
@@ -469,11 +548,13 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> with SingleTi
                     children: [
                       const Icon(Icons.people_alt, size: 18, color: Colors.amberAccent),
                       const SizedBox(width: 8),
-                      Text(
-                        '${targetMembers.length} socios seleccionados',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
+                      Expanded(
+                        child: Text(
+                          '${targetMembers.length} socios seleccionados',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                      const Spacer(),
                       TextButton.icon(
                         style: TextButton.styleFrom(
                           foregroundColor: Colors.white70,
@@ -504,11 +585,11 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> with SingleTi
                     ),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: _buildChannelButton('EMAIL', 'Correo Electrónico', Icons.email_outlined, Colors.blueAccent, state.selectedChannel),
+                      child: _buildChannelButton('EMAIL', 'Correo', Icons.email_outlined, Colors.blueAccent, state.selectedChannel),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: _buildChannelButton('BOTH', 'Ambos Canales', Icons.all_inclusive, Colors.purpleAccent, state.selectedChannel),
+                      child: _buildChannelButton('BOTH', 'Ambos', Icons.all_inclusive, Colors.purpleAccent, state.selectedChannel),
                     ),
                   ],
                 ),
@@ -760,15 +841,20 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> with SingleTi
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Row(
-                    children: [
-                      Icon(Icons.visibility_outlined, size: 18, color: Colors.white70),
-                      SizedBox(width: 8),
-                      Text(
-                        'Vista Previa en Vivo',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white),
-                      ),
-                    ],
+                  const Expanded(
+                    child: Row(
+                      children: [
+                        Icon(Icons.visibility_outlined, size: 18, color: Colors.white70),
+                        SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            'Vista Previa en Vivo',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   Row(
                     children: [
@@ -844,18 +930,26 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> with SingleTi
 
               const SizedBox(height: 16),
 
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primary,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                icon: const Icon(Icons.rocket_launch, size: 20, color: Colors.white),
-                label: Text(
-                  'Iniciar Envío (${targetMembers.length} Socios)',
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
-                ),
-                onPressed: () => _handleStartCampaign(targetMembers),
+              Builder(
+                builder: (context) {
+                  final canSend = ref.watch(authProvider).hasPermission(AppPermissions.campaignsSend);
+                  return ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: canSend ? AppTheme.primary : Colors.white12,
+                      foregroundColor: canSend ? Colors.white : Colors.white38,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    icon: Icon(canSend ? Icons.rocket_launch : Icons.lock_outline, size: 20),
+                    label: Text(
+                      canSend
+                          ? 'Iniciar Envío (${targetMembers.length} Socios)'
+                          : 'Sin Permiso para Enviar Difusiones',
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                    ),
+                    onPressed: canSend ? () => _handleStartCampaign(targetMembers) : null,
+                  );
+                },
               ),
             ],
           ),
@@ -915,6 +1009,9 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> with SingleTi
             const SizedBox(height: 6),
             Text(
               label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
@@ -1253,7 +1350,13 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> with SingleTi
               ),
               title: Row(
                 children: [
-                  Text(c.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  Flexible(
+                    child: Text(
+                      c.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                   const SizedBox(width: 10),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -1288,85 +1391,5 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> with SingleTi
       ),
     );
   }
-
-  // ==========================================
-  // TAB 3: GALERÍA DE PLANTILLAS
-  // ==========================================
-  Widget _buildTemplatesTab() {
-    final state = ref.watch(campaignsProvider);
-    final templates = state.templates;
-
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: GridView.builder(
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          childAspectRatio: 1.35,
-        ),
-        itemCount: templates.length,
-        itemBuilder: (context, index) {
-          final t = templates[index];
-          return Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: const Color(0xFF161A22),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primary.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        t.category,
-                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppTheme.primaryLight),
-                      ),
-                    ),
-                    const Icon(Icons.chat_bubble_outline, size: 16, color: Colors.white38),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  t.name,
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  t.description,
-                  style: const TextStyle(fontSize: 11, color: Colors.white54),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const Spacer(),
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF222731),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                  ),
-                  icon: const Icon(Icons.arrow_forward, size: 14, color: Colors.amberAccent),
-                  label: const Text('Usar Esta Plantilla', style: TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold)),
-                  onPressed: () {
-                    ref.read(campaignsProvider.notifier).applyTemplate(t);
-                    _messageController.text = t.message;
-                    _campaignNameController.text = t.name;
-                    _tabController.animateTo(0);
-                  },
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
 }
+

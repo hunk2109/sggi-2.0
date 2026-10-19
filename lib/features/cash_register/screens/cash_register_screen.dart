@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../../../core/constants/app_permissions.dart';
 import '../../../core/services/receipt_printing_service.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/app_table_scroll_view.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../dialogs/cash_withdrawal_dialog.dart';
 import '../dialogs/close_cash_dialog.dart';
 import '../dialogs/open_cash_dialog.dart';
+import '../models/cash_register_model.dart';
 import '../models/sale_history_model.dart';
 import '../models/shift_payment_model.dart';
 import '../providers/cash_register_provider.dart';
@@ -269,7 +273,7 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
             onPressed: () => Navigator.of(ctx).pop(),
             child: const Text('Cerrar', style: TextStyle(color: Colors.white60)),
           ),
-          if (!isCancelled && isRegisterOpen)
+          if (!isCancelled && isRegisterOpen && ref.read(authProvider).hasPermission(AppPermissions.posVoidSale))
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
                 foregroundColor: Colors.redAccent,
@@ -472,6 +476,12 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
   Widget build(BuildContext context) {
     final state = ref.watch(cashRegisterProvider);
     final notifier = ref.read(cashRegisterProvider.notifier);
+    final authState = ref.watch(authProvider);
+
+    final canOpen = authState.hasPermission(AppPermissions.cashOpen);
+    final canClose = authState.hasPermission(AppPermissions.cashClose);
+    final canWithdraw = authState.hasPermission(AppPermissions.cashWithdraw);
+    final canViewHistory = authState.hasPermission(AppPermissions.cashViewHistory);
 
     return Padding(
       padding: const EdgeInsets.all(24),
@@ -482,15 +492,20 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Row(
-                children: [
-                  Icon(Icons.account_balance_wallet_outlined, color: AppTheme.primary, size: 24),
-                  SizedBox(width: 10),
-                  Text(
-                    'Control de Caja & Historial de Ventas',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                ],
+              Expanded(
+                child: Row(
+                  children: const [
+                    Icon(Icons.account_balance_wallet_outlined, color: AppTheme.primary, size: 24),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Control de Caja & Historial de Ventas',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
               ),
               IconButton(
                 icon: const Icon(Icons.refresh),
@@ -505,7 +520,7 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
           // Active Shift Banner / Hero Card
           state.isLoading
               ? const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator()))
-              : _buildShiftHeroCard(state),
+              : _buildShiftHeroCard(state, canOpen: canOpen, canClose: canClose, canWithdraw: canWithdraw),
 
           const SizedBox(height: 16),
 
@@ -588,8 +603,10 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
                       : 'Cobros Membresías (0)',
                 ),
                 Tab(
-                  icon: const Icon(Icons.history, size: 18),
-                  text: 'Historial de Cierres (${state.history.length})',
+                  icon: Icon(canViewHistory ? Icons.history : Icons.lock_outline, size: 18, color: canViewHistory ? null : Colors.amber),
+                  text: canViewHistory
+                      ? 'Historial de Cierres (${state.history.length})'
+                      : 'Historial de Cierres (Restringido)',
                 ),
               ],
             ),
@@ -750,10 +767,10 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
                       ],
                     ),
                   )
-                : SingleChildScrollView(
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: DataTable(
+                : AppTableScrollView(
+                    child: DataTable(
+                              columnSpacing: 18,
+                              horizontalMargin: 14,
                         headingRowHeight: 42,
                         dataRowMinHeight: 48,
                         dataRowMaxHeight: 52,
@@ -872,7 +889,6 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
                         }).toList(),
                       ),
                     ),
-                  ),
           ),
         ],
       ),
@@ -1022,10 +1038,8 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
                       ],
                     ),
                   )
-                : SingleChildScrollView(
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: DataTable(
+                : AppTableScrollView(
+                    child: DataTable(
                         headingRowHeight: 42,
                         dataRowMinHeight: 48,
                         dataRowMaxHeight: 52,
@@ -1096,7 +1110,6 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
                         }).toList(),
                       ),
                     ),
-                  ),
           ),
         ],
       ),
@@ -1105,6 +1118,43 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
 
   // ================= TAB 3: HISTORIAL DE CIERRES =================
   Widget _buildClosuresHistoryTab(CashRegisterState state) {
+    final canViewHistory = ref.watch(authProvider).hasPermission(AppPermissions.cashViewHistory);
+    if (!canViewHistory) {
+      return Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        ),
+        padding: const EdgeInsets.all(40),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.shield_outlined, size: 54, color: Colors.amber),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'Acceso Restringido al Historial de Cierres',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Tu rol actual no tiene habilitado el permiso para consultar el historial de arqueos y turnos de caja anteriores.\nContacta al Administrador si requieres acceso a esta auditoría.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: Colors.white54, height: 1.4),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     if (state.history.isEmpty) {
       return Container(
         decoration: BoxDecoration(
@@ -1126,11 +1176,22 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
       );
     }
 
-    return ListView.separated(
-      itemCount: state.history.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final reg = state.history[index];
+    return AppTableScrollView(
+      minWidth: 1020,
+      expandChildToWidth: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (int index = 0; index < state.history.length; index++) ...[
+            if (index > 0) const SizedBox(height: 12),
+            _buildClosureHistoryCard(context, state.history[index]),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildClosureHistoryCard(BuildContext context, CashRegisterModel reg) {
         final isExpanded = _expandedShiftIds.contains(reg.id);
         final isLoading = _loadingShiftIds.contains(reg.id);
         final shiftSales = _historyShiftSales[reg.id] ?? [];
@@ -1203,6 +1264,8 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
                             Text(
                               'Apertura: ${_dateTime.format(reg.createdAt)}${reg.closedAt != null ? ' • Cierre: ${_dateTime.format(reg.closedAt!)}' : ''}',
                               style: const TextStyle(fontSize: 12, color: Colors.white54),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ],
                         ),
@@ -1352,9 +1415,14 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
                                     ],
                                   ),
                                   const SizedBox(height: 10),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: DataTable(
+                                  LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      final double minW = constraints.maxWidth.isFinite ? constraints.maxWidth : 0;
+                                      return SingleChildScrollView(
+                                        scrollDirection: Axis.horizontal,
+                                        child: ConstrainedBox(
+                                          constraints: BoxConstraints(minWidth: minW),
+                                          child: DataTable(
                                       headingRowHeight: 36,
                                       dataRowMinHeight: 44,
                                       dataRowMaxHeight: 48,
@@ -1448,6 +1516,9 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
                                       }).toList(),
                                     ),
                                   ),
+                                );
+                              },
+                            ),
                                 ],
 
                                 if (shiftSales.isNotEmpty && shiftPayments.isNotEmpty)
@@ -1477,9 +1548,14 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
                                     ],
                                   ),
                                   const SizedBox(height: 10),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: DataTable(
+                                  LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      final double minW = constraints.maxWidth.isFinite ? constraints.maxWidth : 0;
+                                      return SingleChildScrollView(
+                                        scrollDirection: Axis.horizontal,
+                                        child: ConstrainedBox(
+                                          constraints: BoxConstraints(minWidth: minW),
+                                          child: DataTable(
                                       headingRowHeight: 36,
                                       dataRowMinHeight: 44,
                                       dataRowMaxHeight: 48,
@@ -1545,6 +1621,9 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
                                       }).toList(),
                                     ),
                                   ),
+                                );
+                              },
+                            ),
                                 ],
                               ],
                             ),
@@ -1553,8 +1632,6 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
             ],
           ),
         );
-      },
-    );
   }
 
   Widget _buildShiftSummaryItem(String label, String value, Color valueColor) {
@@ -1617,83 +1694,118 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
     );
   }
 
-  Widget _buildShiftHeroCard(CashRegisterState state) {
+  Widget _buildShiftHeroCard(
+    CashRegisterState state, {
+    required bool canOpen,
+    required bool canClose,
+    required bool canWithdraw,
+  }) {
     final reg = state.currentRegister;
 
-    if (reg == null || !reg.isOpen) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1E232B),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Row(
-              children: [
-                Icon(Icons.lock_outline, size: 42, color: Colors.white38),
-                SizedBox(width: 16),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Caja Cerrada • No Hay Turno Activo',
-                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.white),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      'Debe registrar el fondo inicial para habilitar las operaciones de cobro en mostrador.',
-                      style: TextStyle(fontSize: 12, color: Colors.white54),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.lock_open, size: 18),
-              label: const Text('Iniciar Turno / Abrir Caja'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.success,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-              ),
-              onPressed: _openOpenDialog,
-            ),
-          ],
-        ),
-      );
-    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 840;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0F2618),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.6), width: 1.5),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.greenAccent.withValues(alpha: 0.15),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.lock_open, color: Colors.greenAccent, size: 28),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+        if (reg == null || !reg.isOpen) {
+          final openButton = ElevatedButton.icon(
+            icon: Icon(canOpen ? Icons.lock_open : Icons.lock_outline, size: 18),
+            label: Text(canOpen ? 'Iniciar Turno / Abrir Caja' : 'Abrir Caja (Sin permiso)'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: canOpen ? AppTheme.success : Colors.white12,
+              foregroundColor: canOpen ? Colors.white : Colors.white38,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            ),
+            onPressed: canOpen ? _openOpenDialog : null,
+          );
+
+          return Container(
+            width: double.infinity,
+            padding: EdgeInsets.all(isCompact ? 16 : 24),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E232B),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+            ),
+            child: isCompact
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.lock_outline, size: 38, color: Colors.white38),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: const [
+                                Text(
+                                  'Caja Cerrada • No Hay Turno Activo',
+                                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  'Debe registrar el fondo inicial para habilitar las operaciones de cobro.',
+                                  style: TextStyle(fontSize: 12, color: Colors.white54),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: openButton,
+                      ),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      const Icon(Icons.lock_outline, size: 42, color: Colors.white38),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: const [
+                            Text(
+                              'Caja Cerrada • No Hay Turno Activo',
+                              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.white),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'Debe registrar el fondo inicial para habilitar las operaciones de cobro en mostrador.',
+                              style: TextStyle(fontSize: 12, color: Colors.white54),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      openButton,
+                    ],
+                  ),
+          );
+        }
+
+        final hasActions = canWithdraw || canClose;
+        final isNarrowOpen = constraints.maxWidth < 980;
+
+        Widget infoBlock = Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.greenAccent.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.lock_open, color: Colors.greenAccent, size: 28),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Row(
                     children: [
                       Container(
@@ -1708,9 +1820,12 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
                         ),
                       ),
                       const SizedBox(width: 12),
-                      Text(
-                        'Apertura: ${_dateTime.format(reg.createdAt)}',
-                        style: const TextStyle(fontSize: 12, color: Colors.white70),
+                      Flexible(
+                        child: Text(
+                          'Apertura: ${_dateTime.format(reg.createdAt)}',
+                          style: const TextStyle(fontSize: 12, color: Colors.white70),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ],
                   ),
@@ -1777,11 +1892,14 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
               ),
             ),
           ],
-        ),
-      ),
-      const SizedBox(width: 14),
-      Row(
-            children: [
+        );
+
+        Widget actionsBlock = Wrap(
+          spacing: 10,
+          runSpacing: 8,
+          alignment: WrapAlignment.end,
+          children: [
+            if (canWithdraw)
               OutlinedButton.icon(
                 icon: const Icon(Icons.money_off_csred_outlined, size: 16),
                 label: const Text('Registrar Salida / Gasto'),
@@ -1792,7 +1910,7 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
                 ),
                 onPressed: _openWithdrawalDialog,
               ),
-              const SizedBox(width: 10),
+            if (canClose)
               ElevatedButton.icon(
                 icon: const Icon(Icons.lock_clock, size: 18),
                 label: const Text('Cerrar Turno & Arqueo'),
@@ -1803,10 +1921,43 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
                 ),
                 onPressed: _openCloseDialog,
               ),
-            ],
+          ],
+        );
+
+        return Container(
+          width: double.infinity,
+          padding: EdgeInsets.all(isNarrowOpen ? 16 : 22),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0F2618),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.6), width: 1.5),
           ),
-        ],
-      ),
+          child: isNarrowOpen
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    infoBlock,
+                    if (hasActions) ...[
+                      const SizedBox(height: 14),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: actionsBlock,
+                      ),
+                    ],
+                  ],
+                )
+              : Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(child: infoBlock),
+                    if (hasActions) ...[
+                      const SizedBox(width: 14),
+                      actionsBlock,
+                    ],
+                  ],
+                ),
+        );
+      },
     );
   }
 }
