@@ -1,4 +1,4 @@
-﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../models/inventory_product_model.dart';
 import '../services/inventory_service.dart';
@@ -142,13 +142,32 @@ class InventoryNotifier extends Notifier<InventoryState> {
     }
   }
 
-  Future<bool> adjustStock(String id, int delta) async {
+  Future<bool> adjustStock(
+    String id,
+    int delta, {
+    double? unitCost,
+    bool generateCashExpense = false,
+    String? reason,
+    bool generateCashIncome = false,
+    double? unitPrice,
+  }) async {
     final service = ref.read(inventoryServiceProvider);
     try {
       if (delta >= 0) {
-        await service.addStock(id, delta);
+        await service.addStock(
+          id,
+          delta,
+          unitCost: unitCost,
+          generateCashExpense: generateCashExpense,
+        );
       } else {
-        await service.removeStock(id, delta.abs());
+        await service.removeStock(
+          id,
+          delta.abs(),
+          reason: reason,
+          generateCashIncome: generateCashIncome,
+          unitPrice: unitPrice,
+        );
       }
       await loadProducts();
       return true;

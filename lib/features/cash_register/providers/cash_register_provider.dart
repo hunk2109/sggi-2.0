@@ -33,6 +33,7 @@ class CashRegisterState {
 
   bool get isRegisterOpen => currentRegister != null && currentRegister!.isOpen;
   double get totalWithdrawals => currentTransactions.where((t) => t.isOut).fold(0.0, (sum, t) => sum + t.amount);
+  double get totalInflows => currentTransactions.where((t) => t.isIn).fold(0.0, (sum, t) => sum + t.amount);
   
   // Ventas de Mostrador (POS)
   double get totalSalesAmount => isRegisterOpen
@@ -60,9 +61,9 @@ class CashRegisterState {
       : 0;
 
   // Totales Combinados
-  double get totalShiftRevenue => totalSalesAmount + totalPaymentsAmount;
+  double get totalShiftRevenue => totalSalesAmount + totalPaymentsAmount + totalInflows;
   double get totalCashInDrawer => isRegisterOpen
-      ? (currentRegister!.openingAmount + cashSalesAmount + cashPaymentsAmount - totalWithdrawals)
+      ? (currentRegister!.openingAmount + cashSalesAmount + cashPaymentsAmount + totalInflows - totalWithdrawals)
       : 0.0;
 
   CashRegisterState copyWith({

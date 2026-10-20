@@ -26,7 +26,10 @@ class AttendanceModel {
   });
 
   String get fullName => '$memberName $memberLastName'.trim().isEmpty ? 'Socio Desconocido' : '$memberName $memberLastName'.trim();
-  bool get isAuthorized => status.toUpperCase() == 'AUTHORIZED' || status.toUpperCase() == 'PERMITTED';
+  bool get isAuthorized {
+    final s = status.toUpperCase();
+    return s == 'AUTHORIZED' || s == 'PERMITTED' || s == 'ACCEPTED';
+  }
 
   factory AttendanceModel.fromJson(Map<String, dynamic> json) {
     final memberMap = json['member'] as Map<String, dynamic>?;

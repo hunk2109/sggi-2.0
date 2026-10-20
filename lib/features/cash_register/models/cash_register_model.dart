@@ -71,7 +71,8 @@ class CashTransactionModel {
     required this.createdAt,
   });
 
-  bool get isOut => type == 'out';
+  bool get isOut => type.toLowerCase() == 'out';
+  bool get isIn => type.toLowerCase() == 'in';
 
   factory CashTransactionModel.fromJson(Map<String, dynamic> json) {
     return CashTransactionModel(

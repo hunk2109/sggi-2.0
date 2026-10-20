@@ -219,9 +219,10 @@ class _CloseCashDialogState extends ConsumerState<CloseCashDialog> {
     final otherPayments = state.otherPaymentsAmount;
 
     final withdrawals = state.totalWithdrawals;
+    final inflows = state.totalInflows;
 
-    // Monto esperado en gaveta física (Fondo Inicial + Ventas Efectivo + Membresías Efectivo - Retiros)
-    final expectedCash = opening + cashSales + cashPayments - withdrawals;
+    // Monto esperado en gaveta física (Fondo Inicial + Ventas Efectivo + Membresías Efectivo + Otros Ingresos - Retiros)
+    final expectedCash = opening + cashSales + cashPayments + inflows - withdrawals;
 
     final entered = double.tryParse(_closingController.text.trim()) ?? 0.0;
     final diff = entered - expectedCash;
@@ -333,6 +334,16 @@ class _CloseCashDialogState extends ConsumerState<CloseCashDialog> {
                               children: [
                                 const Text('(+) Cobros de Membresías (Efectivo):', style: TextStyle(fontSize: 12, color: Colors.tealAccent)),
                                 Text('+ ${_currency.format(cashPayments)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.tealAccent)),
+                              ],
+                            ),
+                          ],
+                          if (inflows > 0) ...[
+                            const SizedBox(height: 6),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text('(+) Otros Ingresos (Efectivo):', style: TextStyle(fontSize: 12, color: Colors.greenAccent)),
+                                Text('+ ${_currency.format(inflows)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.greenAccent)),
                               ],
                             ),
                           ],

@@ -524,14 +524,14 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
 
           const SizedBox(height: 16),
 
-          // If shift has cash withdrawals, show them in an activity strip
+          // If shift has cash transactions (withdrawals or inflows), show them in an activity strip
           if (state.isRegisterOpen && state.currentTransactions.isNotEmpty) ...[
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: const Color(0xFF1E232B),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.orangeAccent.withValues(alpha: 0.2)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -541,14 +541,26 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
                     children: [
                       const Row(
                         children: [
-                          Icon(Icons.receipt_outlined, size: 16, color: Colors.orangeAccent),
+                          Icon(Icons.receipt_outlined, size: 16, color: Colors.white70),
                           SizedBox(width: 8),
-                          Text('Salidas y Gastos Registrados en este Turno', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white)),
+                          Text('Movimientos de Caja Registrados en este Turno', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white)),
                         ],
                       ),
-                      Text(
-                        'Total Egresos: ${_currency.format(state.totalWithdrawals)}',
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.orangeAccent),
+                      Wrap(
+                        spacing: 12,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          if (state.totalInflows > 0)
+                            Text(
+                              'Total Ingresos: +${_currency.format(state.totalInflows)}',
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.greenAccent),
+                            ),
+                          if (state.totalWithdrawals > 0)
+                            Text(
+                              'Total Egresos: -${_currency.format(state.totalWithdrawals)}',
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.orangeAccent),
+                            ),
+                        ],
                       ),
                     ],
                   ),
@@ -557,15 +569,38 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
                     spacing: 8,
                     runSpacing: 6,
                     children: state.currentTransactions.map((tx) {
+                      final isIncome = tx.isIn;
                       return Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: Colors.black38,
+                          color: isIncome
+                              ? Colors.green.withValues(alpha: 0.15)
+                              : Colors.orangeAccent.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: isIncome
+                                ? Colors.green.withValues(alpha: 0.35)
+                                : Colors.orangeAccent.withValues(alpha: 0.3),
+                          ),
                         ),
-                        child: Text(
-                          '${tx.concept}: -${_currency.format(tx.amount)} (${_timeFormat.format(tx.createdAt)})',
-                          style: const TextStyle(fontSize: 11, color: Colors.white70),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              isIncome ? Icons.arrow_upward : Icons.arrow_downward,
+                              size: 12,
+                              color: isIncome ? Colors.greenAccent : Colors.orangeAccent,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${tx.concept}: ${isIncome ? '+' : '-'}${_currency.format(tx.amount)} (${_timeFormat.format(tx.createdAt)})',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: isIncome ? Colors.greenAccent : Colors.white70,
+                              ),
+                            ),
+                          ],
                         ),
                       );
                     }).toList(),
@@ -1865,6 +1900,17 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
                           ),
                         ],
                       ),
+                      if (state.totalInflows > 0)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text('Otros Ingresos: ', style: TextStyle(fontSize: 13, color: Colors.white60)),
+                            Text(
+                              '+${_currency.format(state.totalInflows)}',
+                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.greenAccent),
+                            ),
+                          ],
+                        ),
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [

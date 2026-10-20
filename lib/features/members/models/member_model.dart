@@ -17,6 +17,7 @@ class MemberModel {
   final bool hasMembership;
   final bool hasPendingPayment;
   final String? activePlanName;
+  final String? activePlanId;
   final DateTime? membershipEndDate;
   final bool isSuspended;
   final String? role;
@@ -40,12 +41,25 @@ class MemberModel {
     this.hasMembership = false,
     this.hasPendingPayment = false,
     this.activePlanName,
+    this.activePlanId,
     this.membershipEndDate,
     this.isSuspended = false,
     this.role,
   });
 
   bool get isAdmin => role?.toLowerCase() == 'admin';
+  bool get isStaff {
+    final r = role?.toLowerCase() ?? '';
+    return r == 'admin' ||
+        r == 'encargado' ||
+        r == 'empleado_cajero' ||
+        r == 'empleado_entrenador' ||
+        r == 'trainer' ||
+        r == 'cashier' ||
+        r == 'manager' ||
+        r == 'receptionist' ||
+        r == 'supervisor';
+  }
 
   String get fullName => '$firstName $lastName'.trim();
   String get displayCode => memberCode?.isNotEmpty == true ? memberCode! : 'S/C';
@@ -73,6 +87,7 @@ class MemberModel {
 
     // Membresía activa si viene anidada
     String? planName;
+    String? planId;
     DateTime? endDate;
     Map<String, dynamic>? activeMem = json['activeMembership'] as Map<String, dynamic>? ??
         json['membership'] as Map<String, dynamic>? ??
@@ -95,6 +110,9 @@ class MemberModel {
       planName = innerPlan?['name']?.toString() ??
           activeMem['name']?.toString() ??
           activeMem['membershipName']?.toString();
+      planId = innerPlan?['id']?.toString() ??
+          activeMem['membershipId']?.toString() ??
+          activeMem['planId']?.toString();
       final rawEnd = activeMem['endDate']?.toString() ?? activeMem['acc_enddate']?.toString();
       if (rawEnd != null) {
         endDate = DateTime.tryParse(rawEnd)?.toLocal();
@@ -104,8 +122,14 @@ class MemberModel {
     if (planName == null) {
       if (json['membership'] is Map) {
         planName = (json['membership'] as Map)['name']?.toString();
+        planId ??= (json['membership'] as Map)['id']?.toString();
       } else if (json['activePlanName'] != null) {
         planName = json['activePlanName']?.toString();
+      }
+    }
+    if (planId == null) {
+      if (json['membershipId'] != null) {
+        planId = json['membershipId']?.toString();
       }
     }
     if (endDate == null && json['membershipEndDate'] != null) {
@@ -157,6 +181,7 @@ class MemberModel {
           (activeMem != null && activeMem['paymentStatus'] != null && activeMem['paymentStatus'].toString().toLowerCase().contains('pend')) ||
           (json['isPaid'] == false && hasMem),
       activePlanName: planName,
+      activePlanId: planId,
       membershipEndDate: endDate,
       isSuspended: json['isMembershipSuspended'] == true || json['isMembershipSuspended'] == 1,
       role: userMap?['role']?.toString() ?? json['role']?.toString(),

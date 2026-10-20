@@ -1,4 +1,4 @@
-﻿import 'package:dio/dio.dart';
+import 'package:dio/dio.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/network/api_client.dart';
 import '../models/attendance_model.dart';
@@ -51,8 +51,6 @@ class AccessService {
       final isSuccess = data['success'] != false && data['status'] != 'REJECTED';
       final msg = data['message']?.toString() ?? (isSuccess ? 'Acceso Autorizado' : 'Acceso Denegado');
       final reason = data['reason']?.toString();
-      final name = data['memberName'] != null ? '${data['memberName']} ${data['memberLastName'] ?? ''}'.trim() : null;
-
       AttendanceModel? att;
       if (data['attendance'] is Map) {
         att = AttendanceModel.fromJson(data['attendance'] as Map<String, dynamic>);
@@ -60,14 +58,19 @@ class AccessService {
         att = AttendanceModel.fromJson(data);
       }
 
+      final attName = (att.fullName.isNotEmpty && att.fullName != 'Socio Desconocido') ? att.fullName : null;
+      final rootName = data['memberName'] != null ? '${data['memberName']} ${data['memberLastName'] ?? ''}'.trim() : null;
+      final name = rootName ?? attName;
+      final resolvedCode = data['memberCode']?.toString() ?? att.memberCode ?? code;
+
       return AccessScanResult(
         allowed: isSuccess,
         status: isSuccess ? 'AUTHORIZED' : 'REJECTED',
         message: msg,
         reason: reason,
-        memberCode: code,
+        memberCode: resolvedCode,
         memberName: name,
-        memberId: data['memberId']?.toString(),
+        memberId: data['memberId']?.toString() ?? att.memberId,
         timestamp: DateTime.now(),
         attendance: att,
       );
@@ -106,8 +109,6 @@ class AccessService {
 
       final isSuccess = data['success'] != false && data['status'] != 'REJECTED';
       final msg = data['message']?.toString() ?? (isSuccess ? 'Acceso Autorizado' : 'Acceso Denegado');
-      final name = data['memberName'] != null ? '${data['memberName']} ${data['memberLastName'] ?? ''}'.trim() : null;
-
       AttendanceModel? att;
       if (data['attendance'] is Map) {
         att = AttendanceModel.fromJson(data['attendance'] as Map<String, dynamic>);
@@ -115,12 +116,17 @@ class AccessService {
         att = AttendanceModel.fromJson(data);
       }
 
+      final attName = (att.fullName.isNotEmpty && att.fullName != 'Socio Desconocido') ? att.fullName : null;
+      final rootName = data['memberName'] != null ? '${data['memberName']} ${data['memberLastName'] ?? ''}'.trim() : null;
+      final name = rootName ?? attName;
+      final resolvedCode = data['memberCode']?.toString() ?? att.memberCode;
+
       return AccessScanResult(
         allowed: isSuccess,
         status: isSuccess ? 'AUTHORIZED' : 'REJECTED',
         message: msg,
         reason: data['reason']?.toString(),
-        memberCode: data['memberCode']?.toString(),
+        memberCode: resolvedCode,
         memberName: name,
         memberId: memberId,
         timestamp: DateTime.now(),

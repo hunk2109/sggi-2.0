@@ -89,11 +89,39 @@ class InventoryService {
     await _apiClient.dio.delete('${ApiConstants.products}/$id');
   }
 
-  Future<void> addStock(String id, int quantity) async {
-    await _apiClient.dio.post('${ApiConstants.products}/$id/stock/add', data: {'quantity': quantity});
+  Future<void> addStock(
+    String id,
+    int quantity, {
+    double? unitCost,
+    bool generateCashExpense = false,
+  }) async {
+    final data = <String, dynamic>{
+      'quantity': quantity,
+      'generateCashExpense': generateCashExpense,
+    };
+    if (unitCost != null) {
+      data['unitCost'] = unitCost;
+    }
+    await _apiClient.dio.post('${ApiConstants.products}/$id/stock/add', data: data);
   }
 
-  Future<void> removeStock(String id, int quantity) async {
-    await _apiClient.dio.post('${ApiConstants.products}/$id/stock/remove', data: {'quantity': quantity});
+  Future<void> removeStock(
+    String id,
+    int quantity, {
+    String? reason,
+    bool generateCashIncome = false,
+    double? unitPrice,
+  }) async {
+    final data = <String, dynamic>{
+      'quantity': quantity,
+      'generateCashIncome': generateCashIncome,
+    };
+    if (reason != null && reason.isNotEmpty) {
+      data['reason'] = reason;
+    }
+    if (unitPrice != null) {
+      data['unitPrice'] = unitPrice;
+    }
+    await _apiClient.dio.post('${ApiConstants.products}/$id/stock/remove', data: data);
   }
 }

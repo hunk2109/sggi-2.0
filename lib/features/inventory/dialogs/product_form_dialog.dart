@@ -113,7 +113,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
       'category': category.isNotEmpty ? category : 'General',
       'price': double.tryParse(_priceController.text.trim()) ?? 0.0,
       'cost': double.tryParse(_costController.text.trim()) ?? 0.0,
-      'quantity': int.tryParse(_stockController.text.trim()) ?? 0,
+      if (!_isEditing) 'quantity': int.tryParse(_stockController.text.trim()) ?? 0,
       'minStockLevel': int.tryParse(_minStockController.text.trim()) ?? 5,
       if (_skuController.text.trim().isNotEmpty) 'sku': _skuController.text.trim(),
       'supplier': _supplierController.text.trim().isNotEmpty ? _supplierController.text.trim() : 'General',
@@ -347,13 +347,31 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Stock Actual (Unidades) *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                        Row(
+                          children: [
+                            const Text('Stock Actual (Unidades) *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                            if (_isEditing) ...[
+                              const SizedBox(width: 6),
+                              Tooltip(
+                                message: 'El stock no se puede editar manualmente. Usa Entrada (+) o Salida (-) con caja abierta.',
+                                child: Icon(Icons.lock_outline, size: 14, color: Colors.white54),
+                              ),
+                            ],
+                          ],
+                        ),
                         const SizedBox(height: 6),
                         TextFormField(
                           controller: _stockController,
                           keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(hintText: '10'),
-                          validator: (v) => v?.trim().isEmpty == true ? 'Requerido' : null,
+                          enabled: !_isEditing,
+                          decoration: InputDecoration(
+                            hintText: '10',
+                            filled: _isEditing,
+                            fillColor: _isEditing ? AppTheme.darkCard.withOpacity(0.4) : null,
+                            helperText: _isEditing ? 'Solo modificable vía Entrada (+) o Salida (-)' : null,
+                            helperStyle: const TextStyle(fontSize: 10, color: Colors.white54),
+                          ),
+                          validator: _isEditing ? null : (v) => v?.trim().isEmpty == true ? 'Requerido' : null,
                         ),
                       ],
                     ),

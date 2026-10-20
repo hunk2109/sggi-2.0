@@ -47,7 +47,7 @@ class MembersState {
   });
 
   List<MemberModel> get filteredMembers {
-    final list = members.where((m) => !m.isAdmin).toList();
+    final list = members.where((m) => !m.isAdmin && !m.isStaff).toList();
     if (filter == 'all') return list;
     return list.where((m) {
       if (filter == 'active') return !m.isExpired && m.hasMembership && !m.isSuspended;
