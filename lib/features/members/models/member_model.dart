@@ -66,7 +66,16 @@ class MemberModel {
 
   bool get isExpired {
     if (membershipEndDate == null) return true;
-    return membershipEndDate!.isBefore(DateTime.now());
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final endDay = DateTime(
+      membershipEndDate!.year,
+      membershipEndDate!.month,
+      membershipEndDate!.day,
+    );
+    // Vence al día siguiente: durante todo el día de vencimiento sigue vigente.
+    // Solo muestra vencido si el día de fin es estrictamente anterior a hoy (ayer o antes).
+    return endDay.isBefore(todayStart);
   }
 
   String get statusLabel {

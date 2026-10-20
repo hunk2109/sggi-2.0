@@ -26,8 +26,7 @@ class _AssignMembershipDialogState extends ConsumerState<AssignMembershipDialog>
 
   bool get _hasActiveUnexpired =>
       widget.member.hasMembership &&
-      widget.member.membershipEndDate != null &&
-      widget.member.membershipEndDate!.isAfter(DateTime.now());
+      !widget.member.isExpired;
 
   @override
   void initState() {
