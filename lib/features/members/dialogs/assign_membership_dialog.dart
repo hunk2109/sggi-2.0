@@ -22,29 +22,49 @@ class _AssignMembershipDialogState extends ConsumerState<AssignMembershipDialog>
   late DateTime _startDate;
   String _paymentMethod = 'pending'; // Por defecto pendiente según decisión del usuario
   bool _isLoading = false;
-  int _startDateOption = 0; // 0: Desde vencimiento (si aplica) o desde hoy, 1: Desde hoy, 2: Personalizado
 
   bool get _hasActiveUnexpired =>
       widget.member.hasMembership &&
       !widget.member.isExpired;
 
+  bool get _isExpiredRenewal =>
+      widget.member.hasMembership &&
+      widget.member.isExpired;
+
   @override
   void initState() {
     super.initState();
-    if (_hasActiveUnexpired) {
-      _startDate = widget.member.membershipEndDate!;
-      _startDateOption = 0; // Continuar desde vencimiento actual
-    } else {
-      _startDate = DateTime.now();
-      _startDateOption = 1; // Desde hoy
-    }
+    _startDate = DateTime.now();
+    _selectedPlanId = widget.member.activePlanId;
   }
 
   Future<void> _handleSubmit() async {
+    if (_hasActiveUnexpired) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Por política de la empresa, solo se permite renovar la membresía una vez haya vencido.'),
+          backgroundColor: AppTheme.error,
+        ),
+      );
+      return;
+    }
+
     final plans = ref.read(activeMembershipsProvider).value ?? [];
 
     String? planIdToUse = _selectedPlanId;
-    if (_hasActiveUnexpired && (planIdToUse == null || planIdToUse.isEmpty)) {
+    if (_isExpiredRenewal) {
+      planIdToUse = null;
+      if (widget.member.activePlanId != null) {
+        final found = plans.where((p) => p.id == widget.member.activePlanId).firstOrNull;
+        planIdToUse = found?.id;
+      }
+      if (planIdToUse == null && widget.member.activePlanName != null) {
+        final target = widget.member.activePlanName!.trim().toLowerCase();
+        final found = plans.where((p) => p.name.trim().toLowerCase() == target).firstOrNull;
+        planIdToUse = found?.id;
+      }
+      planIdToUse ??= plans.firstOrNull?.id;
+    } else if (planIdToUse == null || planIdToUse.isEmpty) {
       if (widget.member.activePlanId != null) {
         final found = plans.where((p) => p.id == widget.member.activePlanId).firstOrNull;
         planIdToUse = found?.id;
@@ -109,7 +129,7 @@ class _AssignMembershipDialogState extends ConsumerState<AssignMembershipDialog>
                 ],
               ),
               content: Text(
-                'Cobro de RD\$ ${originalPrice.toStringAsFixed(2)} registrado correctamente.\n\n¿Deseas abrir el diálogo de impresión de Windows para emitir el comprobante de ${_hasActiveUnexpired ? "renovación" : "asignación"} del socio?',
+                'Cobro de RD\$ ${originalPrice.toStringAsFixed(2)} registrado correctamente.\n\n¿Deseas abrir el diálogo de impresión de Windows para emitir el comprobante de ${_isExpiredRenewal ? "renovación" : "asignación"} del socio?',
                 style: const TextStyle(fontSize: 13, color: Colors.white70),
               ),
               actions: [
@@ -149,7 +169,7 @@ class _AssignMembershipDialogState extends ConsumerState<AssignMembershipDialog>
               content: Row(
                 children: [
                   const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 24),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       'Membresía asignada internamente.\nAdvertencia de biométrico: ${result.warning!}',
@@ -172,10 +192,10 @@ class _AssignMembershipDialogState extends ConsumerState<AssignMembershipDialog>
                   Expanded(
                     child: Text(
                       isPending
-                          ? (_hasActiveUnexpired
+                          ? (_isExpiredRenewal
                               ? 'Renovación registrada. Factura pendiente generada para cobro en caja.'
                               : 'Membresía asignada. Factura pendiente generada para cobro en caja.')
-                          : (_hasActiveUnexpired
+                          : (_isExpiredRenewal
                               ? 'Membresía renovada y cobrada exitosamente.'
                               : 'Membresía asignada y cobrada exitosamente.'),
                     ),
@@ -190,7 +210,7 @@ class _AssignMembershipDialogState extends ConsumerState<AssignMembershipDialog>
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(_hasActiveUnexpired ? 'Error al renovar membresía' : 'Error al asignar membresía'),
+            content: Text(_isExpiredRenewal ? 'Error al renovar membresía' : 'Error al asignar membresía'),
             backgroundColor: AppTheme.error,
           ),
         );
@@ -201,11 +221,10 @@ class _AssignMembershipDialogState extends ConsumerState<AssignMembershipDialog>
   @override
   Widget build(BuildContext context) {
     final membershipsAsync = ref.watch(activeMembershipsProvider);
-
     final plans = membershipsAsync.value ?? [];
 
     MembershipModel? activeMatchedPlan;
-    if (_hasActiveUnexpired && plans.isNotEmpty) {
+    if (_isExpiredRenewal && plans.isNotEmpty) {
       if (widget.member.activePlanId != null) {
         activeMatchedPlan = plans.where((p) => p.id == widget.member.activePlanId).firstOrNull;
       }
@@ -217,10 +236,9 @@ class _AssignMembershipDialogState extends ConsumerState<AssignMembershipDialog>
       activeMatchedPlan ??= plans.firstOrNull;
     }
 
-    final effectivePlanId = _hasActiveUnexpired ? (_selectedPlanId ?? activeMatchedPlan?.id) : _selectedPlanId;
+    final effectivePlanId = _isExpiredRenewal ? (activeMatchedPlan?.id ?? _selectedPlanId) : _selectedPlanId;
     final selectedPlan = plans.where((p) => p.id == effectivePlanId).firstOrNull;
-
-    num originalPrice = selectedPlan?.price ?? 0;
+    final num originalPrice = selectedPlan?.price ?? 0;
 
     return Dialog(
       backgroundColor: Theme.of(context).cardColor,
@@ -241,12 +259,16 @@ class _AssignMembershipDialogState extends ConsumerState<AssignMembershipDialog>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _hasActiveUnexpired ? 'Renovar Membresía' : 'Asignar Membresía',
+                        _hasActiveUnexpired
+                            ? 'Membresía Activa y al Día'
+                            : (_isExpiredRenewal ? 'Renovar Membresía' : 'Asignar Membresía'),
                         style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Socio: ${widget.member.fullName} (${widget.member.displayCode})',
+                        _isExpiredRenewal
+                            ? 'Socio: ${widget.member.fullName} (${widget.member.displayCode}) • Plan anterior vencido'
+                            : 'Socio: ${widget.member.fullName} (${widget.member.displayCode})',
                         style: const TextStyle(fontSize: 13, color: AppTheme.primaryLight),
                       ),
                     ],
@@ -259,384 +281,359 @@ class _AssignMembershipDialogState extends ConsumerState<AssignMembershipDialog>
               ),
               const Divider(height: 24),
 
-              // Plan Selector / Locked Active Plan
-              if (!_hasActiveUnexpired) ...[
-                const Text('Seleccionar Plan *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 8),
-
-                membershipsAsync.when(
-                  loading: () => const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(16.0),
-                      child: CircularProgressIndicator(),
-                    ),
-                  ),
-                  error: (e, _) => Text('Error cargando planes: $e', style: const TextStyle(color: AppTheme.error)),
-                  data: (plansList) {
-                    if (plansList.isEmpty) {
-                      return const Text('No hay planes activos configurados en el sistema.');
-                    }
-                    return DropdownButtonFormField<String>(
-                      initialValue: _selectedPlanId,
-                      hint: const Text('Selecciona un plan de membresía'),
-                      items: plansList.map((p) {
-                        return DropdownMenuItem(
-                          value: p.id,
-                          child: Text('${p.name} - RD\$ ${p.price.toStringAsFixed(2)} (${p.durationLabel})'),
-                        );
-                      }).toList(),
-                      onChanged: (v) => setState(() => _selectedPlanId = v),
-                    );
-                  },
-                ),
-              ] else ...[
-                // Miembro con Membresía Activa: Se quita el selector de plan y se muestra el plan fijo
+              if (_hasActiveUnexpired) ...[
+                // Banner informativo si está activa
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF161B22),
+                    color: Colors.amber.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.3)),
+                    border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.blueAccent.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(Icons.lock_outline, size: 20, color: Colors.blueAccent),
-                          ),
-                          const SizedBox(width: 12),
+                          const Icon(Icons.verified_outlined, color: Colors.amberAccent, size: 24),
+                          const SizedBox(width: 10),
                           Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Plan a Renovar (Bloqueado)',
-                                  style: TextStyle(fontSize: 11, color: Colors.white60, fontWeight: FontWeight.w500),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  selectedPlan != null
-                                      ? '${selectedPlan.name}  •  RD\$ ${selectedPlan.price.toStringAsFixed(2)} (${selectedPlan.durationLabel})'
-                                      : (widget.member.activePlanName ?? 'Plan Activo'),
-                                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.blueAccent.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.4)),
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.shield_outlined, size: 12, color: Colors.blueAccent),
-                                SizedBox(width: 4),
-                                Text(
-                                  'Plan Fijo',
-                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.blueAccent),
-                                ),
-                              ],
+                            child: Text(
+                              'El socio cuenta con una membresía activa (${widget.member.activePlanName ?? "Plan"})',
+                              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.amber.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: Colors.amber.withValues(alpha: 0.2)),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                      const SizedBox(height: 10),
+                      Text(
+                        'Fecha de vencimiento: ${widget.member.membershipEndDate != null ? DateFormat('dd/MM/yyyy').format(widget.member.membershipEndDate!) : "-"}\n\nPor política de la empresa, solo se permite renovar la membresía una vez haya vencido.\nSi desea asignar un plan diferente antes del vencimiento, debe cancelar el plan actual primero desde su ficha.',
+                        style: const TextStyle(fontSize: 12, color: Colors.white70, height: 1.4),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.white12),
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Cerrar'),
+                    ),
+                  ],
+                ),
+              ] else ...[
+                // Formulario de asignación / renovación
+                if (_isExpiredRenewal) ...[
+                  // Miembro con Membresía Vencida (Renovación): El plan está BLOQUEADO/FIJO
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF161B22),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
                           children: [
-                            const Icon(Icons.info_outline, size: 15, color: Colors.amberAccent),
-                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.blueAccent.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(Icons.lock_outline, size: 20, color: Colors.blueAccent),
+                            ),
+                            const SizedBox(width: 12),
                             Expanded(
-                              child: Text(
-                                'Por política de la empresa, no está permitido modificar el plan a un miembro con membresía activa. Si deseas asignarle un plan diferente, primero debes cancelar el plan actual desde su ficha de socio.',
-                                style: TextStyle(fontSize: 11, color: Colors.amber.shade200, height: 1.3),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Plan a Renovar (Bloqueado)',
+                                    style: TextStyle(fontSize: 11, color: Colors.white60, fontWeight: FontWeight.w500),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    selectedPlan != null
+                                        ? '${selectedPlan.name}  •  RD\$ ${selectedPlan.price.toStringAsFixed(2)} (${selectedPlan.durationLabel})'
+                                        : (widget.member.activePlanName ?? 'Plan del Socio'),
+                                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.blueAccent.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.4)),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.shield_outlined, size: 12, color: Colors.blueAccent),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Plan Fijo',
+                                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.blueAccent),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
                         ),
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: Colors.amber.withValues(alpha: 0.2)),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(Icons.info_outline, size: 15, color: Colors.amberAccent),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Por política de la empresa, no está permitido modificar el plan al renovar una membresía vencida. Si deseas asignarle un plan diferente, primero debes cancelar la membresía desde su ficha de socio.',
+                                  style: TextStyle(fontSize: 11, color: Colors.amber.shade200, height: 1.3),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ] else ...[
+                  // Socio Sin Plan: Puede seleccionar libremente su plan
+                  const Text('Seleccionar Plan *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+
+                  membershipsAsync.when(
+                    loading: () => const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: CircularProgressIndicator(),
                       ),
-                    ],
+                    ),
+                    error: (e, _) => Text('Error cargando planes: $e', style: const TextStyle(color: AppTheme.error)),
+                    data: (plansList) {
+                      if (plansList.isEmpty) {
+                        return const Text('No hay planes activos configurados en el sistema.');
+                      }
+                      return DropdownButtonFormField<String>(
+                        initialValue: _selectedPlanId,
+                        hint: const Text('Selecciona un plan de membresía'),
+                        items: plansList.map((p) {
+                          return DropdownMenuItem(
+                            value: p.id,
+                            child: Text('${p.name} - RD\$ ${p.price.toStringAsFixed(2)} (${p.durationLabel})'),
+                          );
+                        }).toList(),
+                        onChanged: (v) => setState(() => _selectedPlanId = v),
+                      );
+                    },
+                  ),
+                ],
+
+                if (selectedPlan != null && selectedPlan.type == MembershipType.group) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.purple.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.purpleAccent.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.groups_outlined, color: Colors.purpleAccent, size: 22),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Membresía Familiar / Grupal',
+                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.purpleAccent),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Este plan convierte al socio en Titular de un Grupo Familiar. Permite registrar hasta ${selectedPlan.maxGroupCompanions ?? "varios"} familiares o acompañantes (${selectedPlan.pricePerCompanion != null && selectedPlan.pricePerCompanion! > 0 ? "RD\$ ${selectedPlan.pricePerCompanion!.toStringAsFixed(2)} c/u" : "incluidos en la tarifa"}).\nPodrás registrar y vincular a sus acompañantes desde el detalle del socio.',
+                                style: const TextStyle(fontSize: 12, color: Colors.white70, height: 1.3),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
+                const SizedBox(height: 18),
+
+                // Fecha de Inicio
+                const Text('Fecha de Inicio de Vigencia', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+
+                InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _startDate,
+                      firstDate: DateTime.now().subtract(const Duration(days: 30)),
+                      lastDate: DateTime.now().add(const Duration(days: 180)),
+                    );
+                    if (picked != null) {
+                      setState(() {
+                        _startDate = picked;
+                      });
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Theme.of(context).dividerColor.withValues(alpha: 0.2)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          DateFormat('dd/MM/yyyy').format(_startDate),
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        const Row(
+                          children: [
+                            Text('Cambiar fecha', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                            SizedBox(width: 6),
+                            Icon(Icons.calendar_today_outlined, size: 16, color: Colors.grey),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ],
 
-              if (selectedPlan != null && selectedPlan.type == MembershipType.group) ...[
+                const SizedBox(height: 18),
+
+                // RESUMEN DEL COSTO DEL PLAN
+                if (selectedPlan != null) ...[
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF15181E),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Costo del Plan:', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white70)),
+                        Text(
+                          'RD\$ ${originalPrice.toStringAsFixed(2)}',
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.amberAccent),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                ],
+
+                // Payment Method
+                const Text('Cobro y Facturación', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  initialValue: _paymentMethod,
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'pending',
+                      child: Text('Generar factura pendiente (Cobrar en caja / Pagos)'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'cash',
+                      child: Text('Cobrar inmediatamente - Efectivo'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'card',
+                      child: Text('Cobrar inmediatamente - Tarjeta de Crédito/Débito'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'transfer',
+                      child: Text('Cobrar inmediatamente - Transferencia'),
+                    ),
+                  ],
+                  onChanged: (v) => setState(() => _paymentMethod = v ?? 'pending'),
+                ),
+
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.purple.withValues(alpha: 0.12),
+                    color: _paymentMethod == 'pending'
+                        ? Colors.orange.withValues(alpha: 0.08)
+                        : Colors.green.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.purpleAccent.withValues(alpha: 0.3)),
+                    border: Border.all(
+                      color: _paymentMethod == 'pending'
+                          ? Colors.orange.withValues(alpha: 0.2)
+                          : Colors.green.withValues(alpha: 0.2),
+                    ),
                   ),
                   child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.groups_outlined, color: Colors.purpleAccent, size: 22),
+                      Icon(
+                        _paymentMethod == 'pending' ? Icons.receipt_long_outlined : Icons.check_circle_outline,
+                        size: 18,
+                        color: _paymentMethod == 'pending' ? Colors.orangeAccent : Colors.greenAccent,
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Membresía Familiar / Grupal',
-                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.purpleAccent),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Este plan convierte al socio en Titular de un Grupo Familiar. Permite registrar hasta ${selectedPlan.maxGroupCompanions ?? "varios"} familiares o acompañantes (${selectedPlan.pricePerCompanion != null && selectedPlan.pricePerCompanion! > 0 ? "RD\$ ${selectedPlan.pricePerCompanion!.toStringAsFixed(2)} c/u" : "incluidos en la tarifa"}).\nPodrás registrar y vincular a sus acompañantes desde el detalle del socio.',
-                              style: const TextStyle(fontSize: 12, color: Colors.white70, height: 1.3),
-                            ),
-                          ],
+                        child: Text(
+                          _paymentMethod == 'pending'
+                              ? 'Se registrará el plan asignado con pago PENDIENTE. Podrás cobrarlo en la caja desde el módulo de Pagos o en la ficha del socio.'
+                              : 'El pago se registrará como COMPLETADO inmediatamente en la caja activa del cajero.',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: _paymentMethod == 'pending' ? Colors.orangeAccent : Colors.greenAccent,
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
-              ],
 
-              const SizedBox(height: 18),
+                const SizedBox(height: 28),
 
-              // Fecha de Inicio & Renovación Anticipada
-              const Text('Fecha de Inicio de Vigencia', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 8),
-
-              if (_hasActiveUnexpired) ...[
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.blueAccent.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.25)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.info_outline, size: 16, color: Colors.blueAccent),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'El socio tiene un plan vigente hasta el ${DateFormat('dd/MM/yyyy').format(widget.member.membershipEndDate!)}',
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.blueAccent),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        children: [
-                          ChoiceChip(
-                            label: Text('Extender desde vencimiento (${DateFormat('dd/MM').format(widget.member.membershipEndDate!)})'),
-                            selected: _startDateOption == 0,
-                            onSelected: (selected) {
-                              if (selected) {
-                                setState(() {
-                                  _startDateOption = 0;
-                                  _startDate = widget.member.membershipEndDate!;
-                                });
-                              }
-                            },
-                          ),
-                          ChoiceChip(
-                            label: const Text('Iniciar desde hoy'),
-                            selected: _startDateOption == 1,
-                            onSelected: (selected) {
-                              if (selected) {
-                                setState(() {
-                                  _startDateOption = 1;
-                                  _startDate = DateTime.now();
-                                });
-                              }
-                            },
-                          ),
-                          ChoiceChip(
-                            label: const Text('Personalizada'),
-                            selected: _startDateOption == 2,
-                            onSelected: (selected) {
-                              if (selected) {
-                                setState(() => _startDateOption = 2);
-                              }
-                            },
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-
-              InkWell(
-                borderRadius: BorderRadius.circular(8),
-                onTap: () async {
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate: _startDate,
-                    firstDate: DateTime.now().subtract(const Duration(days: 30)),
-                    lastDate: DateTime.now().add(const Duration(days: 180)),
-                  );
-                  if (picked != null) {
-                    setState(() {
-                      _startDate = picked;
-                      _startDateOption = 2; // Personalizada
-                    });
-                  }
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Theme.of(context).dividerColor.withValues(alpha: 0.2)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        DateFormat('dd/MM/yyyy').format(_startDate),
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      const Row(
-                        children: [
-                          Text('Cambiar fecha', style: TextStyle(fontSize: 11, color: Colors.grey)),
-                          SizedBox(width: 6),
-                          Icon(Icons.calendar_today_outlined, size: 16, color: Colors.grey),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 18),
-
-              // RESUMEN DEL COSTO DEL PLAN
-              if (selectedPlan != null) ...[
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF15181E),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Costo del Plan:', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white70)),
-                      Text(
-                        'RD\$ ${originalPrice.toStringAsFixed(2)}',
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.amberAccent),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 18),
-              ],
-
-              const SizedBox(height: 18),
-
-              // Payment Method
-              const Text('Cobro y Facturación', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                initialValue: _paymentMethod,
-                items: const [
-                  DropdownMenuItem(
-                    value: 'pending',
-                    child: Text('Generar factura pendiente (Cobrar en caja / Pagos)'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'cash',
-                    child: Text('Cobrar inmediatamente - Efectivo'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'card',
-                    child: Text('Cobrar inmediatamente - Tarjeta de Crédito/Débito'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'transfer',
-                    child: Text('Cobrar inmediatamente - Transferencia'),
-                  ),
-                ],
-                onChanged: (v) => setState(() => _paymentMethod = v ?? 'pending'),
-              ),
-
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: _paymentMethod == 'pending'
-                      ? Colors.orange.withValues(alpha: 0.08)
-                      : Colors.green.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: _paymentMethod == 'pending'
-                        ? Colors.orange.withValues(alpha: 0.2)
-                        : Colors.green.withValues(alpha: 0.2),
-                  ),
-                ),
-                child: Row(
+                // Actions
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    Icon(
-                      _paymentMethod == 'pending' ? Icons.receipt_long_outlined : Icons.check_circle_outline,
-                      size: 18,
-                      color: _paymentMethod == 'pending' ? Colors.orangeAccent : Colors.greenAccent,
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Cancelar'),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        _paymentMethod == 'pending'
-                            ? 'Se registrará el plan asignado con pago PENDIENTE. Podrás cobrarlo en la caja desde el módulo de Pagos o en la ficha del socio.'
-                            : 'El pago se registrará como COMPLETADO inmediatamente en la caja activa del cajero.',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: _paymentMethod == 'pending' ? Colors.orangeAccent : Colors.greenAccent,
-                        ),
-                      ),
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                      onPressed: _isLoading ? null : _handleSubmit,
+                      child: _isLoading
+                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : Text(_isExpiredRenewal ? 'Confirmar Renovación' : 'Confirmar Asignación'),
                     ),
                   ],
                 ),
-              ),
-
-              const SizedBox(height: 28),
-
-              // Actions
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Cancelar'),
-                  ),
-                  const SizedBox(width: 12),
-                  ElevatedButton(
-                    onPressed: _isLoading ? null : _handleSubmit,
-                    child: _isLoading
-                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : Text(_hasActiveUnexpired ? 'Confirmar Renovación' : 'Confirmar Asignación'),
-                  ),
-                ],
-              ),
+              ],
             ],
           ),
         ),

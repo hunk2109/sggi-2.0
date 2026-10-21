@@ -294,16 +294,42 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (canAssign) ...[
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.credit_card, size: 16),
-                    label: const Text('Renovar Plan'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  if (!_currentMember.hasMembership)
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.credit_card, size: 16),
+                      label: const Text('Asignar Plan'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      ),
+                      onPressed: _openAssignMembership,
+                    )
+                  else if (_currentMember.isExpired)
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.autorenew, size: 16),
+                      label: const Text('Renovar Plan'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      ),
+                      onPressed: _openAssignMembership,
+                    )
+                  else
+                    Tooltip(
+                      message: 'El socio cuenta con una membresía activa y al día. Por política de la empresa, solo se permite renovar una vez haya vencido.',
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.verified_outlined, size: 16),
+                        label: const Text('Plan al Día'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white10,
+                          foregroundColor: Colors.white38,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        ),
+                        onPressed: null,
+                      ),
                     ),
-                    onPressed: _openAssignMembership,
-                  ),
                   const SizedBox(width: 8),
                 ],
                 if (canEdit) ...[
@@ -523,16 +549,50 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
             ],
             rows: _membershipsHistory.map((m) {
               final planMap = m['membership'] as Map?;
+              final paymentMap = m['payment'] as Map?;
               final planName = planMap?['name']?.toString() ?? 'Plan';
               final startRaw = m['startDate']?.toString();
               final endRaw = m['endDate']?.toString() ?? m['acc_enddate']?.toString();
               final startDt = startRaw != null ? DateTime.tryParse(startRaw)?.toLocal() : null;
               final endDt = endRaw != null ? DateTime.tryParse(endRaw)?.toLocal() : null;
-              final price = double.tryParse(planMap?['price']?.toString() ?? m['price']?.toString() ?? '') ?? 0.0;
-              final paid = double.tryParse(m['amountPaid']?.toString() ?? '') ?? 0.0;
-              final pStatus = m['paymentStatus']?.toString() ?? (m['isPaid'] == true ? 'PAID' : 'PENDING');
+              final price = double.tryParse(m['payAmount']?.toString() ?? planMap?['price']?.toString() ?? m['price']?.toString() ?? '') ?? 0.0;
+              final pStatus = paymentMap?['status']?.toString() ?? m['paymentStatus']?.toString() ?? (m['isPaid'] == true ? 'PAID' : 'PENDING');
+              final isCompleted = pStatus.toUpperCase().contains('COMPLET') || pStatus.toUpperCase().contains('PAID');
+              final paid = isCompleted
+                  ? (double.tryParse(paymentMap?['amount']?.toString() ?? m['amountPaid']?.toString() ?? '') ?? price)
+                  : (double.tryParse(m['amountPaid']?.toString() ?? '') ?? 0.0);
               final isEndValid = endDt != null && endDt.year > 2020;
-              final isActive = m['isActive'] == true || (isEndValid && endDt.isAfter(DateTime.now()));
+              final isActive = m['isActive'] == true;
+              final isCancelled = m['discountReason']?.toString().toLowerCase().contains('cancelada') == true ||
+                  (m['isActive'] != true && m['suspensionDate'] != null && endDt != null && (DateTime.tryParse(m['suspensionDate'].toString())?.isBefore(endDt) ?? false));
+
+              String statusLabel;
+              Color statusColor;
+              Color statusBg;
+
+              if (isActive) {
+                final now = DateTime.now();
+                final todayMidnight = DateTime(now.year, now.month, now.day, 23, 59, 59);
+                final isExpired = isEndValid && endDt.isBefore(todayMidnight);
+
+                if (isExpired) {
+                  statusLabel = 'VENCIDA';
+                  statusColor = Colors.orangeAccent;
+                  statusBg = Colors.orange.withValues(alpha: 0.15);
+                } else {
+                  statusLabel = 'ACTIVA';
+                  statusColor = Colors.greenAccent;
+                  statusBg = Colors.green.withValues(alpha: 0.15);
+                }
+              } else if (isCancelled) {
+                statusLabel = 'CANCELADA';
+                statusColor = Colors.redAccent;
+                statusBg = Colors.red.withValues(alpha: 0.15);
+              } else {
+                statusLabel = 'FINALIZADA';
+                statusColor = Colors.white54;
+                statusBg = Colors.white10;
+              }
 
               return DataRow(
                 cells: [
@@ -546,15 +606,15 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
-                        color: isActive ? Colors.green.withValues(alpha: 0.15) : Colors.white10,
+                        color: statusBg,
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        isActive ? 'ACTIVA' : 'FINALIZADA',
+                        statusLabel,
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
-                          color: isActive ? Colors.greenAccent : Colors.white38,
+                          color: statusColor,
                         ),
                       ),
                     ),
@@ -753,11 +813,15 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
 
   Future<void> _openCancelMembershipDialog(Map<String, dynamic> m) async {
     final planMap = m['membership'] as Map?;
+    final paymentMap = m['payment'] as Map?;
     final planName = planMap?['name']?.toString() ?? 'Plan';
-    final price = double.tryParse(planMap?['price']?.toString() ?? m['price']?.toString() ?? '') ?? 0.0;
-    final paid = double.tryParse(m['amountPaid']?.toString() ?? '') ?? 0.0;
-    final pStatus = m['paymentStatus']?.toString() ?? (m['isPaid'] == true ? 'PAID' : 'PENDING');
+    final price = double.tryParse(m['payAmount']?.toString() ?? planMap?['price']?.toString() ?? m['price']?.toString() ?? '') ?? 0.0;
+    final pStatus = paymentMap?['status']?.toString() ?? m['paymentStatus']?.toString() ?? (m['isPaid'] == true ? 'PAID' : 'PENDING');
     final isPending = pStatus.toUpperCase().contains('PEND');
+    final isCompleted = pStatus.toUpperCase().contains('COMPLET') || pStatus.toUpperCase().contains('PAID');
+    final paid = isCompleted
+        ? (double.tryParse(paymentMap?['amount']?.toString() ?? m['amountPaid']?.toString() ?? '') ?? price)
+        : (double.tryParse(m['amountPaid']?.toString() ?? '') ?? 0.0);
     final effectivePaid = paid > 0 ? paid : price;
 
     String selectedAction = 'credit_balance'; // 'credit_balance', 'refund', 'revoke_only'

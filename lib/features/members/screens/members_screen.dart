@@ -356,13 +356,26 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
                                                   onPressed: () => _openMemberDetail(member),
                                                 ),
                                                 if (canAssign)
-                                                  IconButton(
-                                                    icon: const Icon(Icons.credit_card, size: 18),
-                                                    tooltip: 'Asignar / Renovar Plan',
-                                                    color: AppTheme.primary,
-                                                    constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
-                                                    padding: const EdgeInsets.all(4),
-                                                    onPressed: () => _openAssignMembershipDialog(member),
+                                                  Builder(
+                                                    builder: (context) {
+                                                      final bool canAct = !member.hasMembership || member.isExpired;
+                                                      final String tooltip = !member.hasMembership
+                                                          ? 'Asignar Membresía'
+                                                          : (member.isExpired
+                                                              ? 'Renovar Membresía (Vencida)'
+                                                              : 'Membresía activa y al día (Solo renovable al vencer)');
+                                                      return IconButton(
+                                                        icon: Icon(
+                                                          member.hasMembership ? Icons.autorenew : Icons.credit_card,
+                                                          size: 18,
+                                                        ),
+                                                        tooltip: tooltip,
+                                                        color: canAct ? AppTheme.primary : Colors.white24,
+                                                        constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                                                        padding: const EdgeInsets.all(4),
+                                                        onPressed: canAct ? () => _openAssignMembershipDialog(member) : null,
+                                                      );
+                                                    },
                                                   ),
                                                 if (canEdit)
                                                   IconButton(
