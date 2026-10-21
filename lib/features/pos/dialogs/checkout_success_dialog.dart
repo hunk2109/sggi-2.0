@@ -187,6 +187,7 @@ class _CheckoutSuccessDialogState extends ConsumerState<CheckoutSuccessDialog> {
     if (m == 'cash') return 'Efectivo';
     if (m == 'card') return 'Tarjeta';
     if (m == 'transfer') return 'Transferencia';
+    if (m == 'credit_balance') return 'Saldo a Favor';
     return m;
   }
 }

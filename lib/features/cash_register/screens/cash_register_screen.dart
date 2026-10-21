@@ -1313,13 +1313,13 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
                           _buildShiftSummaryItem('Fondo Inicial', _currency.format(reg.openingAmount), Colors.white70),
                           const SizedBox(width: 20),
                           _buildShiftSummaryItem(
-                            'Cierre Real',
+                            'Efectivo Real',
                             reg.closingAmount != null ? _currency.format(reg.closingAmount!) : '-',
                             Colors.white,
                           ),
                           const SizedBox(width: 20),
                           _buildShiftSummaryItem(
-                            'Esperado',
+                            'Efectivo Esperado',
                             reg.expectedClosure != null ? _currency.format(reg.expectedClosure!) : '-',
                             Colors.white70,
                           ),
@@ -1429,6 +1429,180 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
                           : Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                // Resumen Financiero por Método de Pago
+                                Builder(
+                                  builder: (context) {
+                                    final activeSales = shiftSales.where((s) => s.status != 'cancelled');
+                                    final cashSales = activeSales
+                                        .where((s) => s.paymentMethod.toLowerCase() == 'cash' || s.paymentMethod.toLowerCase() == 'efectivo' || s.paymentMethod.isEmpty)
+                                        .fold(0.0, (sum, s) => sum + s.totalAmount);
+                                    final cardSales = activeSales
+                                        .where((s) => s.paymentMethod.toLowerCase() == 'card' || s.paymentMethod.toLowerCase() == 'tarjeta')
+                                        .fold(0.0, (sum, s) => sum + s.totalAmount);
+                                    final transferSales = activeSales
+                                        .where((s) => s.paymentMethod.toLowerCase() == 'transfer' || s.paymentMethod.toLowerCase() == 'transferencia')
+                                        .fold(0.0, (sum, s) => sum + s.totalAmount);
+
+                                    final activePayments = shiftPayments.where((p) => p.status != 'cancelled');
+                                    final cashPayments = activePayments
+                                        .where((p) => p.paymentMethod.toLowerCase() == 'cash' || p.paymentMethod.toLowerCase() == 'efectivo' || p.paymentMethod.isEmpty)
+                                        .fold(0.0, (sum, p) => sum + p.amount);
+                                    final cardPayments = activePayments
+                                        .where((p) => p.paymentMethod.toLowerCase() == 'card' || p.paymentMethod.toLowerCase() == 'tarjeta')
+                                        .fold(0.0, (sum, p) => sum + p.amount);
+                                    final transferPayments = activePayments
+                                        .where((p) => p.paymentMethod.toLowerCase() == 'transfer' || p.paymentMethod.toLowerCase() == 'transferencia')
+                                        .fold(0.0, (sum, p) => sum + p.amount);
+
+                                    final totalCashIncome = cashSales + cashPayments;
+                                    final totalCard = cardSales + cardPayments;
+                                    final totalTransfer = transferSales + transferPayments;
+                                    final totalRevenue = totalCashIncome + totalCard + totalTransfer;
+                                    final openingCash = reg.openingAmount;
+                                    final expectedCash = reg.expectedClosure ?? (openingCash + totalCashIncome);
+
+                                    return Container(
+                                      margin: const EdgeInsets.only(bottom: 20),
+                                      padding: const EdgeInsets.all(14),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF161A22),
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              const Row(
+                                                children: [
+                                                  Icon(Icons.analytics_outlined, size: 16, color: AppTheme.primary),
+                                                  SizedBox(width: 8),
+                                                  Text(
+                                                    'Resumen Financiero del Turno',
+                                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
+                                                  ),
+                                                ],
+                                              ),
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  color: AppTheme.primary.withValues(alpha: 0.15),
+                                                  borderRadius: BorderRadius.circular(6),
+                                                ),
+                                                child: Text(
+                                                  'Total Facturado: ${_currency.format(totalRevenue)}',
+                                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppTheme.primary),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 12),
+                                          Row(
+                                            children: [
+                                              // Tarjeta 1: Efectivo Físico en Gaveta
+                                              Expanded(
+                                                child: Container(
+                                                  padding: const EdgeInsets.all(12),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.green.withValues(alpha: 0.08),
+                                                    borderRadius: BorderRadius.circular(8),
+                                                    border: Border.all(color: Colors.green.withValues(alpha: 0.25)),
+                                                  ),
+                                                  child: Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      const Row(
+                                                        children: [
+                                                          Icon(Icons.attach_money, size: 14, color: Colors.greenAccent),
+                                                          SizedBox(width: 4),
+                                                          Text('Efectivo en Gaveta', style: TextStyle(fontSize: 11, color: Colors.greenAccent, fontWeight: FontWeight.bold)),
+                                                        ],
+                                                      ),
+                                                      const SizedBox(height: 4),
+                                                      Text(_currency.format(expectedCash), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                                                      const SizedBox(height: 2),
+                                                      Text(
+                                                        'Fondo (${_currency.format(openingCash)}) + Cobros (${_currency.format(totalCashIncome)})',
+                                                        style: const TextStyle(fontSize: 10, color: Colors.white54),
+                                                        overflow: TextOverflow.ellipsis,
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 10),
+                                              // Tarjeta 2: Tarjeta (Banco / POS)
+                                              Expanded(
+                                                child: Container(
+                                                  padding: const EdgeInsets.all(12),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.blue.withValues(alpha: 0.08),
+                                                    borderRadius: BorderRadius.circular(8),
+                                                    border: Border.all(color: Colors.blue.withValues(alpha: 0.25)),
+                                                  ),
+                                                  child: Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      const Row(
+                                                        children: [
+                                                          Icon(Icons.credit_card, size: 14, color: Colors.blueAccent),
+                                                          SizedBox(width: 4),
+                                                          Text('Tarjetas (Banco)', style: TextStyle(fontSize: 11, color: Colors.blueAccent, fontWeight: FontWeight.bold)),
+                                                        ],
+                                                      ),
+                                                      const SizedBox(height: 4),
+                                                      Text(_currency.format(totalCard), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                                                      const SizedBox(height: 2),
+                                                      const Text(
+                                                        'Entra a cuenta de banco',
+                                                        style: TextStyle(fontSize: 10, color: Colors.white54),
+                                                        overflow: TextOverflow.ellipsis,
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 10),
+                                              // Tarjeta 3: Transferencias (Banco)
+                                              Expanded(
+                                                child: Container(
+                                                  padding: const EdgeInsets.all(12),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.purple.withValues(alpha: 0.08),
+                                                    borderRadius: BorderRadius.circular(8),
+                                                    border: Border.all(color: Colors.purple.withValues(alpha: 0.25)),
+                                                  ),
+                                                  child: Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      const Row(
+                                                        children: [
+                                                          Icon(Icons.account_balance, size: 14, color: Colors.purpleAccent),
+                                                          SizedBox(width: 4),
+                                                          Text('Transferencias (Banco)', style: TextStyle(fontSize: 11, color: Colors.purpleAccent, fontWeight: FontWeight.bold)),
+                                                        ],
+                                                      ),
+                                                      const SizedBox(height: 4),
+                                                      Text(_currency.format(totalTransfer), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                                                      const SizedBox(height: 2),
+                                                      const Text(
+                                                        'Entra a cuenta de banco',
+                                                        style: TextStyle(fontSize: 10, color: Colors.white54),
+                                                        overflow: TextOverflow.ellipsis,
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                ),
                                 if (shiftSales.isNotEmpty) ...[
                                   Row(
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1704,6 +1878,12 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
         fg = Colors.purpleAccent;
         label = 'Transferencia';
         icon = Icons.account_balance;
+        break;
+      case 'credit_balance':
+        bg = Colors.teal.withValues(alpha: 0.15);
+        fg = Colors.tealAccent;
+        label = 'Saldo a Favor';
+        icon = Icons.account_balance_wallet;
         break;
       default:
         bg = Colors.white10;

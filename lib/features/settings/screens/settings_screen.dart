@@ -43,6 +43,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
   String _notificationChannel = 'both';
   String _ticketPaperSize = '80mm';
   bool _isSendingManualReport = false;
+  bool _enableDailySummaryReport = true;
+  bool _enablePaymentReminders = true;
+  bool _enableExpirationWarnings = true;
+  bool _enableBirthdayEmails = true;
+  bool _enableMembershipRenewal = true;
 
   // WhatsApp test controllers
   final _testPhoneCtrl = TextEditingController();
@@ -376,6 +381,11 @@ if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
     _recipientsCtrl.text = settings.closingReportRecipients ?? '';
     _notificationChannel = settings.notificationChannel ?? 'both';
     _ticketPaperSize = settings.ticketPaperSize.isNotEmpty ? settings.ticketPaperSize : '80mm';
+    _enableDailySummaryReport = settings.enableDailySummaryReport;
+    _enablePaymentReminders = settings.enablePaymentReminders;
+    _enableExpirationWarnings = settings.enableExpirationWarnings;
+    _enableBirthdayEmails = settings.enableBirthdayEmails;
+    _enableMembershipRenewal = settings.enableMembershipRenewal;
     _isInitialized = true;
   }
 
@@ -1071,141 +1081,315 @@ if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
   // =================== TAB 3: REPORTES & AUTOMATIZACIÓN ===================
   Widget _buildAutomationTab(GymSettingsState state) {
     return SingleChildScrollView(
-      child: Card(
-        color: AppTheme.darkCard,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: const BorderSide(color: AppTheme.darkBorder),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(28.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Cortes de Caja y Reportes Automáticos', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 4),
-              Text(
-                'El sistema genera resúmenes automáticos de ventas y asistencia en las horas fijadas.',
-                style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.6)),
-              ),
-              const Divider(height: 28, color: AppTheme.darkBorder),
-
-              Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Tarjeta 1: Cortes de Caja y Reportes Automáticos
+          Card(
+            color: AppTheme.darkCard,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(color: AppTheme.darkBorder),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(28.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Canal de Notificaciones Preferido', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 8),
-                        DropdownButtonFormField<String>(
-                          initialValue: _notificationChannel,
-                          items: const [
-                            DropdownMenuItem(value: 'whatsapp', child: Text('Solo WhatsApp')),
-                            DropdownMenuItem(value: 'email', child: Text('Solo Correo Electrónico')),
-                            DropdownMenuItem(value: 'both', child: Text('WhatsApp y Correo (Ambos)')),
+                  const Text('Cortes de Caja y Reportes Automáticos', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  Text(
+                    'El sistema genera resúmenes automáticos de ventas y asistencia en las horas fijadas.',
+                    style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.6)),
+                  ),
+                  const Divider(height: 28, color: AppTheme.darkBorder),
+
+                  _buildNotificationSwitch(
+                    title: 'Activar Envíos Automáticos de Cortes de Caja',
+                    subtitle: 'Genera y envía automáticamente los cierres a los destinatarios en las horas fijadas (Mañana y Noche).',
+                    value: _enableDailySummaryReport,
+                    icon: Icons.receipt_long_rounded,
+                    activeColor: Colors.greenAccent,
+                    onChanged: (val) => setState(() => _enableDailySummaryReport = val),
+                  ),
+                  const SizedBox(height: 20),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Canal de Notificaciones Preferido', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<String>(
+                              initialValue: _notificationChannel,
+                              items: const [
+                                DropdownMenuItem(value: 'whatsapp', child: Text('Solo WhatsApp')),
+                                DropdownMenuItem(value: 'email', child: Text('Solo Correo Electrónico')),
+                                DropdownMenuItem(value: 'both', child: Text('WhatsApp y Correo (Ambos)')),
+                              ],
+                              onChanged: (v) => setState(() => _notificationChannel = v ?? 'both'),
+                            ),
                           ],
-                          onChanged: (v) => setState(() => _notificationChannel = v ?? 'both'),
                         ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(width: 20),
+                      Expanded(
+                        child: _buildTimePickerField('Hora de Corte 1 (Turno Mañana)', _time1Ctrl, '12:00'),
+                      ),
+                      const SizedBox(width: 20),
+                      Expanded(
+                        child: _buildTimePickerField('Hora de Corte 2 (Turno Noche)', _time2Ctrl, '21:00'),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 20),
-                  Expanded(
-                    child: _buildTimePickerField('Hora de Corte 1 (Turno Mañana)', _time1Ctrl, '12:00'),
-                  ),
-                  const SizedBox(width: 20),
-                  Expanded(
-                    child: _buildTimePickerField('Hora de Corte 2 (Turno Noche)', _time2Ctrl, '21:00'),
+                  const SizedBox(height: 20),
+
+                  _buildRecipientsSection(),
+                  const SizedBox(height: 32),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      OutlinedButton.icon(
+                        icon: _isSendingManualReport
+                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primary))
+                            : const Icon(Icons.send_rounded, size: 18, color: AppTheme.primary),
+                        label: Text(
+                          _isSendingManualReport ? 'Generando y Enviando...' : 'Enviar Reporte Ahora',
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: AppTheme.primary),
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                          backgroundColor: AppTheme.primary.withValues(alpha: 0.1),
+                        ),
+                        onPressed: _isSendingManualReport
+                            ? null
+                            : () async {
+                                final recipients = _recipientsCtrl.text.trim();
+                                if (recipients.isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Agrega al menos un teléfono o correo en los destinatarios.'),
+                                      backgroundColor: AppTheme.warning,
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                setState(() => _isSendingManualReport = true);
+                                try {
+                                  final service = ref.read(settingsServiceProvider);
+                                  final res = await service.sendDailySummaryReport();
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(res.message),
+                                      backgroundColor: res.success ? AppTheme.success : AppTheme.error,
+                                    ),
+                                  );
+                                } finally {
+                                  if (mounted) setState(() => _isSendingManualReport = false);
+                                }
+                              },
+                      ),
+                      const SizedBox(width: 14),
+                      ElevatedButton.icon(
+                        icon: state.isSaving
+                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : const Icon(Icons.save, size: 18),
+                        label: const Text('Guardar Parámetros de Reporte'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primary,
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                        ),
+                        onPressed: state.isSaving
+                            ? null
+                            : () async {
+                                final model = (state.settings ?? GymSettingsModel()).copyWith(
+                                  notificationChannel: _notificationChannel,
+                                  closingReportTime1: _time1Ctrl.text.trim(),
+                                  closingReportTime2: _time2Ctrl.text.trim(),
+                                  closingReportRecipients: _recipientsCtrl.text.trim(),
+                                  enableDailySummaryReport: _enableDailySummaryReport,
+                                  enablePaymentReminders: _enablePaymentReminders,
+                                  enableExpirationWarnings: _enableExpirationWarnings,
+                                  enableBirthdayEmails: _enableBirthdayEmails,
+                                  enableMembershipRenewal: _enableMembershipRenewal,
+                                );
+
+                                final ok = await ref.read(gymSettingsProvider.notifier).saveSettings(model);
+                                if (!mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(ok ? 'Parámetros actualizados exitosamente' : 'Error al guardar parámetros'),
+                                    backgroundColor: ok ? AppTheme.success : AppTheme.error,
+                                  ),
+                                );
+                              },
+                      ),
+                    ],
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
-
-              _buildRecipientsSection(),
-              const SizedBox(height: 32),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  OutlinedButton.icon(
-                    icon: _isSendingManualReport
-                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primary))
-                        : const Icon(Icons.send_rounded, size: 18, color: AppTheme.primary),
-                    label: Text(
-                      _isSendingManualReport ? 'Generando y Enviando...' : 'Enviar Reporte Ahora',
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: AppTheme.primary),
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                      backgroundColor: AppTheme.primary.withValues(alpha: 0.1),
-                    ),
-                    onPressed: _isSendingManualReport
-                        ? null
-                        : () async {
-                            final recipients = _recipientsCtrl.text.trim();
-                            if (recipients.isEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Agrega al menos un teléfono o correo en los destinatarios.'),
-                                  backgroundColor: AppTheme.warning,
-                                ),
-                              );
-                              return;
-                            }
-
-                            setState(() => _isSendingManualReport = true);
-                            try {
-                              final service = ref.read(settingsServiceProvider);
-                              final res = await service.sendDailySummaryReport();
-                              if (!mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(res.message),
-                                  backgroundColor: res.success ? AppTheme.success : AppTheme.error,
-                                ),
-                              );
-                            } finally {
-                              if (mounted) setState(() => _isSendingManualReport = false);
-                            }
-                          },
-                  ),
-                  const SizedBox(width: 14),
-                  ElevatedButton.icon(
-                    icon: state.isSaving
-                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Icon(Icons.save, size: 18),
-                    label: const Text('Guardar Parámetros de Reporte'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primary,
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                    ),
-                    onPressed: state.isSaving
-                        ? null
-                        : () async {
-                            final model = (state.settings ?? GymSettingsModel()).copyWith(
-                              notificationChannel: _notificationChannel,
-                              closingReportTime1: _time1Ctrl.text.trim(),
-                              closingReportTime2: _time2Ctrl.text.trim(),
-                              closingReportRecipients: _recipientsCtrl.text.trim(),
-                            );
-
-                            final ok = await ref.read(gymSettingsProvider.notifier).saveSettings(model);
-                            if (!mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(ok ? 'Parámetros actualizados exitosamente' : 'Error al guardar parámetros'),
-                                backgroundColor: ok ? AppTheme.success : AppTheme.error,
-                              ),
-                            );
-                          },
-                  ),
-                ],
-              ),
-            ],
+            ),
           ),
-        ),
+
+          const SizedBox(height: 20),
+
+          // Tarjeta 2: Notificaciones y Mensajes Automáticos a Clientes
+          Card(
+            color: AppTheme.darkCard,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(color: AppTheme.darkBorder),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(28.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Control de Notificaciones y Mensajes Automáticos del Sistema', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Activa o desactiva qué tipos de mensajes automáticos envía el sistema por WhatsApp y Correo a los socios.',
+                    style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.6)),
+                  ),
+                  const Divider(height: 28, color: AppTheme.darkBorder),
+
+                  _buildNotificationSwitch(
+                    title: 'Recordatorios de Pago y Cobro Automático',
+                    subtitle: 'Envía alertas preventivas y avisos de cobro a socios con cuotas por vencer o pendientes.',
+                    value: _enablePaymentReminders,
+                    icon: Icons.payments_outlined,
+                    activeColor: Colors.blueAccent,
+                    onChanged: (val) => setState(() => _enablePaymentReminders = val),
+                  ),
+                  const SizedBox(height: 12),
+
+                  _buildNotificationSwitch(
+                    title: 'Alertas de Membresías por Vencer',
+                    subtitle: 'Notifica con anticipación a los socios cuando su plan esté próximo a expirar.',
+                    value: _enableExpirationWarnings,
+                    icon: Icons.notifications_active_outlined,
+                    activeColor: Colors.orangeAccent,
+                    onChanged: (val) => setState(() => _enableExpirationWarnings = val),
+                  ),
+                  const SizedBox(height: 12),
+
+                  _buildNotificationSwitch(
+                    title: 'Felicitaciones de Cumpleaños a Socios',
+                    subtitle: 'Envía mensajes y felicitaciones automáticas a los socios registrados el día de su cumpleaños.',
+                    value: _enableBirthdayEmails,
+                    icon: Icons.cake_outlined,
+                    activeColor: Colors.purpleAccent,
+                    onChanged: (val) => setState(() => _enableBirthdayEmails = val),
+                  ),
+                  const SizedBox(height: 12),
+
+                  _buildNotificationSwitch(
+                    title: 'Avisos de Renovación de Membresía',
+                    subtitle: 'Envía confirmación y recibo digital cada vez que se renueva o adquiere una membresía.',
+                    value: _enableMembershipRenewal,
+                    icon: Icons.autorenew_rounded,
+                    activeColor: Colors.tealAccent,
+                    onChanged: (val) => setState(() => _enableMembershipRenewal = val),
+                  ),
+                  const SizedBox(height: 28),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      ElevatedButton.icon(
+                        icon: state.isSaving
+                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : const Icon(Icons.save, size: 18),
+                        label: const Text('Guardar Configuración de Mensajes'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primary,
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                        ),
+                        onPressed: state.isSaving
+                            ? null
+                            : () async {
+                                final model = (state.settings ?? GymSettingsModel()).copyWith(
+                                  notificationChannel: _notificationChannel,
+                                  closingReportTime1: _time1Ctrl.text.trim(),
+                                  closingReportTime2: _time2Ctrl.text.trim(),
+                                  closingReportRecipients: _recipientsCtrl.text.trim(),
+                                  enableDailySummaryReport: _enableDailySummaryReport,
+                                  enablePaymentReminders: _enablePaymentReminders,
+                                  enableExpirationWarnings: _enableExpirationWarnings,
+                                  enableBirthdayEmails: _enableBirthdayEmails,
+                                  enableMembershipRenewal: _enableMembershipRenewal,
+                                );
+
+                                final ok = await ref.read(gymSettingsProvider.notifier).saveSettings(model);
+                                if (!mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(ok ? 'Configuración de mensajes guardada exitosamente' : 'Error al guardar configuración'),
+                                    backgroundColor: ok ? AppTheme.success : AppTheme.error,
+                                  ),
+                                );
+                              },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 32),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNotificationSwitch({
+    required String title,
+    required String subtitle,
+    required bool value,
+    required IconData icon,
+    required ValueChanged<bool> onChanged,
+    Color activeColor = Colors.greenAccent,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF161A22),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: value ? activeColor.withValues(alpha: 0.3) : AppTheme.darkBorder),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: value ? activeColor.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 20, color: value ? activeColor : Colors.white54),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white)),
+                const SizedBox(height: 2),
+                Text(subtitle, style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.6))),
+              ],
+            ),
+          ),
+          Switch(
+            value: value,
+            activeThumbColor: activeColor,
+            onChanged: onChanged,
+          ),
+        ],
       ),
     );
   }

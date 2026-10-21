@@ -84,9 +84,25 @@ class _AssignMembershipDialogState extends ConsumerState<AssignMembershipDialog>
       return;
     }
 
+    final selectedPlan = plans.where((p) => p.id == planIdToUse).firstOrNull;
+
+    if (_paymentMethod == 'credit_balance') {
+      final price = selectedPlan?.price ?? 0;
+      if (widget.member.creditBalance < price) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Saldo a favor insuficiente (Disponible: RD\$ ${widget.member.creditBalance.toStringAsFixed(2)}, Costo: RD\$ ${price.toStringAsFixed(2)})',
+            ),
+            backgroundColor: AppTheme.warning,
+          ),
+        );
+        return;
+      }
+    }
+
     setState(() => _isLoading = true);
 
-    final selectedPlan = plans.where((p) => p.id == planIdToUse).firstOrNull;
     DateTime calculatedEnd;
     if (selectedPlan != null && selectedPlan.durationDays != null && selectedPlan.durationDays! > 0) {
       calculatedEnd = _startDate.add(Duration(days: selectedPlan.durationDays!));
@@ -163,13 +179,18 @@ class _AssignMembershipDialogState extends ConsumerState<AssignMembershipDialog>
         if (!mounted) return;
         navigator.pop(true);
 
+        messenger.clearSnackBars();
         if (result.warning != null && result.warning!.isNotEmpty) {
           messenger.showSnackBar(
             SnackBar(
+              behavior: SnackBarBehavior.floating,
+              showCloseIcon: true,
+              closeIconColor: Colors.white,
+              width: 520,
               content: Row(
                 children: [
                   const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 24),
-                  SizedBox(width: 12),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       'Membresía asignada internamente.\nAdvertencia de biométrico: ${result.warning!}',
@@ -179,12 +200,16 @@ class _AssignMembershipDialogState extends ConsumerState<AssignMembershipDialog>
                 ],
               ),
               backgroundColor: Colors.orange.shade800,
-              duration: const Duration(seconds: 7),
+              duration: const Duration(seconds: 4),
             ),
           );
         } else {
           messenger.showSnackBar(
             SnackBar(
+              behavior: SnackBarBehavior.floating,
+              showCloseIcon: true,
+              closeIconColor: Colors.white,
+              width: 480,
               content: Row(
                 children: [
                   const Icon(Icons.check_circle_outline, color: Colors.white, size: 22),
@@ -551,25 +576,54 @@ class _AssignMembershipDialogState extends ConsumerState<AssignMembershipDialog>
                   const SizedBox(height: 18),
                 ],
 
+                if (widget.member.creditBalance > 0) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.teal.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.tealAccent.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.account_balance_wallet, color: Colors.tealAccent, size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'El socio cuenta con Saldo a Favor de RD\$ ${widget.member.creditBalance.toStringAsFixed(2)}. Puedes usarlo como método de pago inmediato.',
+                            style: const TextStyle(fontSize: 12, color: Colors.tealAccent, fontWeight: FontWeight.w500),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                ],
+
                 // Payment Method
                 const Text('Cobro y Facturación', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
                   initialValue: _paymentMethod,
-                  items: const [
-                    DropdownMenuItem(
+                  items: [
+                    const DropdownMenuItem(
                       value: 'pending',
                       child: Text('Generar factura pendiente (Cobrar en caja / Pagos)'),
                     ),
-                    DropdownMenuItem(
+                    if (widget.member.creditBalance > 0)
+                      DropdownMenuItem(
+                        value: 'credit_balance',
+                        child: Text('Cobrar inmediatamente - Saldo a Favor (RD\$ ${widget.member.creditBalance.toStringAsFixed(2)} disp.)'),
+                      ),
+                    const DropdownMenuItem(
                       value: 'cash',
                       child: Text('Cobrar inmediatamente - Efectivo'),
                     ),
-                    DropdownMenuItem(
+                    const DropdownMenuItem(
                       value: 'card',
                       child: Text('Cobrar inmediatamente - Tarjeta de Crédito/Débito'),
                     ),
-                    DropdownMenuItem(
+                    const DropdownMenuItem(
                       value: 'transfer',
                       child: Text('Cobrar inmediatamente - Transferencia'),
                     ),
@@ -583,30 +637,48 @@ class _AssignMembershipDialogState extends ConsumerState<AssignMembershipDialog>
                   decoration: BoxDecoration(
                     color: _paymentMethod == 'pending'
                         ? Colors.orange.withValues(alpha: 0.08)
-                        : Colors.green.withValues(alpha: 0.08),
+                        : _paymentMethod == 'credit_balance'
+                            ? Colors.teal.withValues(alpha: 0.08)
+                            : Colors.green.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
                       color: _paymentMethod == 'pending'
                           ? Colors.orange.withValues(alpha: 0.2)
-                          : Colors.green.withValues(alpha: 0.2),
+                          : _paymentMethod == 'credit_balance'
+                              ? Colors.teal.withValues(alpha: 0.3)
+                              : Colors.green.withValues(alpha: 0.2),
                     ),
                   ),
                   child: Row(
                     children: [
                       Icon(
-                        _paymentMethod == 'pending' ? Icons.receipt_long_outlined : Icons.check_circle_outline,
+                        _paymentMethod == 'pending'
+                            ? Icons.receipt_long_outlined
+                            : _paymentMethod == 'credit_balance'
+                                ? Icons.account_balance_wallet
+                                : Icons.check_circle_outline,
                         size: 18,
-                        color: _paymentMethod == 'pending' ? Colors.orangeAccent : Colors.greenAccent,
+                        color: _paymentMethod == 'pending'
+                            ? Colors.orangeAccent
+                            : _paymentMethod == 'credit_balance'
+                                ? Colors.tealAccent
+                                : Colors.greenAccent,
                       ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           _paymentMethod == 'pending'
                               ? 'Se registrará el plan asignado con pago PENDIENTE. Podrás cobrarlo en la caja desde el módulo de Pagos o en la ficha del socio.'
-                              : 'El pago se registrará como COMPLETADO inmediatamente en la caja activa del cajero.',
+                              : _paymentMethod == 'credit_balance'
+                                  ? 'Se descontará el monto del plan directamente del Saldo a Favor del socio (RD\$ ${widget.member.creditBalance.toStringAsFixed(2)} disponible).'
+                                  : 'El pago se registrará como COMPLETADO inmediatamente en la caja activa del cajero.',
                           style: TextStyle(
                             fontSize: 11,
-                            color: _paymentMethod == 'pending' ? Colors.orangeAccent : Colors.greenAccent,
+                            color: _paymentMethod == 'pending'
+                                ? Colors.orangeAccent
+                                : _paymentMethod == 'credit_balance'
+                                    ? Colors.tealAccent
+                                    : Colors.greenAccent,
                           ),
                         ),
                       ),

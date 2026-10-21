@@ -158,11 +158,16 @@ class PosNotifier extends Notifier<PosState> {
   }
 
   void clearCart() {
-    state = state.copyWith(cart: [], discount: 0.0, amountReceived: 0.0, clearMember: true);
+    state = state.copyWith(cart: [], discount: 0.0, amountReceived: 0.0, clearMember: true, paymentMethod: 'cash');
   }
 
   void selectMember(MemberModel? member) {
-    state = state.copyWith(selectedMember: member, clearMember: member == null);
+    final shouldResetPayment = (member == null || member.creditBalance <= 0) && state.paymentMethod == 'credit_balance';
+    state = state.copyWith(
+      selectedMember: member,
+      clearMember: member == null,
+      paymentMethod: shouldResetPayment ? 'cash' : state.paymentMethod,
+    );
   }
 
   void setPaymentMethod(String method) {
@@ -179,6 +184,19 @@ class PosNotifier extends Notifier<PosState> {
 
   Future<Map<String, dynamic>?> processSale() async {
     if (state.cart.isEmpty) return null;
+
+    if (state.paymentMethod == 'credit_balance') {
+      if (state.selectedMember == null) {
+        state = state.copyWith(error: 'Debes seleccionar un socio para pagar con Saldo a Favor.');
+        return null;
+      }
+      if (state.selectedMember!.creditBalance < state.total) {
+        state = state.copyWith(
+          error: 'Saldo a favor insuficiente (Disponible: RD\$ ${state.selectedMember!.creditBalance.toStringAsFixed(2)}, Total: RD\$ ${state.total.toStringAsFixed(2)}).',
+        );
+        return null;
+      }
+    }
 
     state = state.copyWith(isProcessingSale: true, error: null);
     final service = ref.read(posServiceProvider);

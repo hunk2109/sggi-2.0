@@ -196,6 +196,9 @@ class _PosScreenState extends ConsumerState<PosScreen> {
 
     if (result != null) {
       _receivedController.clear();
+      if (method == 'credit_balance') {
+        ref.read(membersProvider.notifier).loadMembers();
+      }
       showDialog(
         context: context,
         builder: (_) => CheckoutSuccessDialog(
@@ -482,6 +485,28 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
+                          if (state.selectedMember != null && state.selectedMember!.creditBalance > 0) ...[
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.teal.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: Colors.tealAccent.withValues(alpha: 0.4)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.account_balance_wallet, size: 11, color: Colors.tealAccent),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    _currency.format(state.selectedMember!.creditBalance),
+                                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.tealAccent),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                          ],
                           const Icon(Icons.edit, size: 14, color: Colors.white38),
                         ],
                       ),
@@ -591,12 +616,41 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                       Row(
                         children: [
                           _buildPaymentMethodOption('cash', 'Efectivo', Icons.money, state.paymentMethod, notifier),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 6),
                           _buildPaymentMethodOption('card', 'Tarjeta', Icons.credit_card, state.paymentMethod, notifier),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 6),
                           _buildPaymentMethodOption('transfer', 'Transf.', Icons.account_balance, state.paymentMethod, notifier),
+                          if (state.selectedMember != null && state.selectedMember!.creditBalance > 0) ...[
+                            const SizedBox(width: 6),
+                            _buildPaymentMethodOption('credit_balance', 'Saldo Favor', Icons.account_balance_wallet, state.paymentMethod, notifier, isTeal: true),
+                          ],
                         ],
                       ),
+
+                      // If Credit Balance: Notice banner
+                      if (state.paymentMethod == 'credit_balance') ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.teal.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: Colors.tealAccent.withValues(alpha: 0.3)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.account_balance_wallet, color: Colors.tealAccent, size: 16),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Se descontará de su Saldo a Favor (Disponible: ${_currency.format(state.selectedMember?.creditBalance ?? 0)})',
+                                  style: const TextStyle(fontSize: 11, color: Colors.tealAccent, fontWeight: FontWeight.w500),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
 
                       // If Cash: Fast change calculation input
                       if (state.paymentMethod == 'cash') ...[
@@ -824,11 +878,12 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     );
   }
 
-  Widget _buildPaymentMethodOption(String key, String label, IconData icon, String activeKey, PosNotifier notifier) {
+  Widget _buildPaymentMethodOption(String key, String label, IconData icon, String activeKey, PosNotifier notifier, {bool isTeal = false}) {
     final isSelected = activeKey == key;
+    final selectedColor = isTeal ? Colors.teal : AppTheme.primary;
     return Expanded(
       child: Material(
-        color: isSelected ? AppTheme.primary : const Color(0xFF1E232B),
+        color: isSelected ? selectedColor : const Color(0xFF1E232B),
         borderRadius: BorderRadius.circular(6),
         child: InkWell(
           borderRadius: BorderRadius.circular(6),
@@ -838,14 +893,14 @@ class _PosScreenState extends ConsumerState<PosScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, size: 14, color: isSelected ? Colors.white : Colors.white60),
+                Icon(icon, size: 14, color: isSelected ? Colors.white : (isTeal ? Colors.tealAccent : Colors.white60)),
                 const SizedBox(width: 4),
                 Text(
                   label,
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                    color: isSelected ? Colors.white : Colors.white70,
+                    color: isSelected ? Colors.white : (isTeal ? Colors.tealAccent : Colors.white70),
                   ),
                 ),
               ],

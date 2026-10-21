@@ -92,6 +92,19 @@ class AppTheme {
         trackColor: WidgetStateProperty.all(const Color(0xFF16191E)),
         trackBorderColor: WidgetStateProperty.all(const Color(0xFF282F3B)),
       ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        showCloseIcon: true,
+        closeIconColor: Colors.white70,
+        backgroundColor: const Color(0xFF252A34),
+        contentTextStyle: const TextStyle(color: Colors.white, fontSize: 13),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+          side: const BorderSide(color: Color(0xFF333A48)),
+        ),
+        elevation: 8,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+      ),
     );
   }
 
@@ -147,6 +160,19 @@ class AppTheme {
           borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: primary, width: 2),
         ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        showCloseIcon: true,
+        closeIconColor: Colors.black54,
+        backgroundColor: const Color(0xFF1E2229),
+        contentTextStyle: const TextStyle(color: Colors.white, fontSize: 13),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+          side: const BorderSide(color: Color(0xFF333A48)),
+        ),
+        elevation: 8,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
       ),
     );
   }

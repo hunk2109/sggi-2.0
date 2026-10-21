@@ -229,4 +229,49 @@ class MemberService {
       throw Exception(e.response?.data?['message'] ?? 'Error cancelando membresía');
     }
   }
+
+  Future<bool> addCredit({
+    required String memberId,
+    required double amount,
+    required String paymentMethod,
+    String? notes,
+  }) async {
+    try {
+      final response = await _apiClient.dio.post(
+        '${ApiConstants.members}/$memberId/credit',
+        data: {
+          'amount': amount,
+          'paymentMethod': paymentMethod,
+          if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+        },
+      );
+      return response.statusCode == 200 || response.statusCode == 201;
+    } on DioException catch (e) {
+      throw Exception(e.response?.data?['message'] ?? 'Error agregando saldo a favor');
+    }
+  }
+
+  Future<MemberModel> updateNotificationPreferences(
+    String memberId, {
+    bool? notificationsEnabled,
+    bool? receiveEmails,
+    bool? receiveWhatsapp,
+  }) async {
+    try {
+      final data = <String, dynamic>{};
+      if (notificationsEnabled != null) data['notificationsEnabled'] = notificationsEnabled;
+      if (receiveEmails != null) data['receiveEmails'] = receiveEmails;
+      if (receiveWhatsapp != null) data['receiveWhatsapp'] = receiveWhatsapp;
+
+      final response = await _apiClient.dio.put(
+        '${ApiConstants.members}/$memberId/notifications',
+        data: data,
+      );
+      final resData = response.data is Map ? response.data : {};
+      final memberJson = resData['data'] is Map ? resData['data'] : resData;
+      return MemberModel.fromJson(Map<String, dynamic>.from(memberJson as Map));
+    } on DioException catch (e) {
+      throw Exception(e.response?.data?['message'] ?? 'Error actualizando preferencias de notificaciones');
+    }
+  }
 }

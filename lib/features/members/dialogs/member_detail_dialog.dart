@@ -11,6 +11,7 @@ import '../../memberships/providers/group_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../models/member_model.dart';
 import '../providers/members_provider.dart';
+import 'add_credit_dialog.dart';
 import 'assign_membership_dialog.dart';
 import 'new_member_dialog.dart';
 import 'pay_fee_dialog.dart';
@@ -104,13 +105,80 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
     }
   }
 
+  Future<void> _openAddCreditDialog() async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AddCreditDialog(member: _currentMember),
+    );
+    if (result == true) {
+      await _loadAllHistory();
+      ref.read(membersProvider.notifier).loadMembers();
+    }
+  }
+
+  Future<void> _updateNotificationPreference({
+    bool? notificationsEnabled,
+    bool? receiveEmails,
+    bool? receiveWhatsapp,
+  }) async {
+    final previousMember = _currentMember;
+    final newMember = _currentMember.copyWith(
+      notificationsEnabled: notificationsEnabled ?? _currentMember.notificationsEnabled,
+      receiveEmails: receiveEmails ?? _currentMember.receiveEmails,
+      receiveWhatsapp: receiveWhatsapp ?? _currentMember.receiveWhatsapp,
+    );
+
+    setState(() {
+      _currentMember = newMember;
+    });
+
+    try {
+      final updated = await ref.read(memberServiceProvider).updateNotificationPreferences(
+        _currentMember.id,
+        notificationsEnabled: notificationsEnabled,
+        receiveEmails: receiveEmails,
+        receiveWhatsapp: receiveWhatsapp,
+      );
+      if (mounted) {
+        setState(() {
+          _currentMember = updated;
+        });
+        ref.read(membersProvider.notifier).loadMembers();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              notificationsEnabled == false
+                  ? 'Mensajes del sistema desactivados para ${_currentMember.fullName}'
+                  : 'Preferencias de mensajería actualizadas',
+            ),
+            backgroundColor: AppTheme.success,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _currentMember = previousMember;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error actualizando preferencias: $e'),
+            backgroundColor: AppTheme.error,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: const Color(0xFF16191E),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: Container(
-        width: 880,
+        width: 960,
         height: 680,
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -236,13 +304,15 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
+              Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 6,
                 children: [
                   Text(
                     _currentMember.fullName,
                     style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
-                  const SizedBox(width: 12),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
@@ -255,28 +325,41 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
                       style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white70),
                     ),
                   ),
-                  const SizedBox(width: 8),
                   _buildStatusBadge(_currentMember),
                 ],
               ),
               const SizedBox(height: 6),
-              Row(
+              Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 12,
+                runSpacing: 4,
                 children: [
-                  if (_currentMember.phone != null) ...[
-                    const Icon(Icons.phone_outlined, size: 13, color: Colors.white54),
-                    const SizedBox(width: 4),
-                    Text(_currentMember.phone!, style: const TextStyle(fontSize: 12, color: Colors.white70)),
-                    const SizedBox(width: 14),
-                  ],
-                  if (_currentMember.documentId != null) ...[
-                    const Icon(Icons.credit_card_outlined, size: 13, color: Colors.white54),
-                    const SizedBox(width: 4),
-                    Text('Cédula: ${_currentMember.documentId}', style: const TextStyle(fontSize: 12, color: Colors.white70)),
-                    const SizedBox(width: 14),
-                  ],
-                  const Icon(Icons.calendar_today_outlined, size: 13, color: Colors.white54),
-                  const SizedBox(width: 4),
-                  Text('Ingreso: ${_dateFormat.format(_currentMember.joinDate)}', style: const TextStyle(fontSize: 12, color: Colors.white70)),
+                  if (_currentMember.phone != null)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.phone_outlined, size: 13, color: Colors.white54),
+                        const SizedBox(width: 4),
+                        Text(_currentMember.phone!, style: const TextStyle(fontSize: 12, color: Colors.white70)),
+                      ],
+                    ),
+                  if (_currentMember.documentId != null)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.credit_card_outlined, size: 13, color: Colors.white54),
+                        const SizedBox(width: 4),
+                        Text('Cédula: ${_currentMember.documentId}', style: const TextStyle(fontSize: 12, color: Colors.white70)),
+                      ],
+                    ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.calendar_today_outlined, size: 13, color: Colors.white54),
+                      const SizedBox(width: 4),
+                      Text('Ingreso: ${_dateFormat.format(_currentMember.joinDate)}', style: const TextStyle(fontSize: 12, color: Colors.white70)),
+                    ],
+                  ),
                 ],
               ),
             ],
@@ -343,6 +426,40 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
                   ),
                   const SizedBox(width: 8),
                 ],
+                Tooltip(
+                  message: _currentMember.notificationsEnabled
+                      ? 'Mensajes automáticos del sistema ACTIVADOS para este socio. Clic para configurar.'
+                      : 'Mensajes automáticos del sistema DESACTIVADOS para este socio. Clic para activar.',
+                  child: OutlinedButton.icon(
+                    icon: Icon(
+                      _currentMember.notificationsEnabled
+                          ? Icons.notifications_active_outlined
+                          : Icons.notifications_off_outlined,
+                      size: 16,
+                      color: _currentMember.notificationsEnabled ? Colors.greenAccent : Colors.orangeAccent,
+                    ),
+                    label: Text(
+                      _currentMember.notificationsEnabled ? 'Mensajes ON' : 'Mensajes OFF',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: _currentMember.notificationsEnabled ? Colors.greenAccent : Colors.orangeAccent,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                      side: BorderSide(
+                        color: _currentMember.notificationsEnabled
+                            ? Colors.greenAccent.withValues(alpha: 0.4)
+                            : Colors.orangeAccent.withValues(alpha: 0.4),
+                      ),
+                    ),
+                    onPressed: () {
+                      _tabController.animateTo(3); // Switch to 'Datos Personales' tab
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
               ],
             );
           },
@@ -411,7 +528,99 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
         ),
         const SizedBox(width: 12),
 
-        // Card 2: Total Pagos
+        // Card 2: Saldo a Favor
+        Expanded(
+          child: Material(
+            color: const Color(0xFF1E232B),
+            borderRadius: BorderRadius.circular(10),
+            child: InkWell(
+              onTap: _openAddCreditDialog,
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: _currentMember.creditBalance > 0
+                        ? Colors.tealAccent.withValues(alpha: 0.35)
+                        : Colors.white.withValues(alpha: 0.08),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(9),
+                      decoration: BoxDecoration(
+                        color: _currentMember.creditBalance > 0
+                            ? Colors.tealAccent.withValues(alpha: 0.15)
+                            : Colors.white.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.account_balance_wallet,
+                        color: _currentMember.creditBalance > 0 ? Colors.tealAccent : Colors.white38,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Saldo a Favor', style: TextStyle(fontSize: 11, color: Colors.white54)),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: Colors.teal.withValues(alpha: 0.25),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.add, size: 10, color: Colors.tealAccent),
+                                    SizedBox(width: 2),
+                                    Text('Recargar', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.tealAccent)),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _currencyFormat.format(_currentMember.creditBalance),
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: _currentMember.creditBalance > 0 ? Colors.tealAccent : Colors.white70,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            _currentMember.creditBalance > 0 ? 'Clic para recargar' : '+ Recargar saldo',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.tealAccent.withValues(alpha: 0.8),
+                              fontWeight: FontWeight.w500,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+
+        // Card 3: Total Pagos
         Expanded(
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -649,7 +858,20 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
 
   // TAB 2: Pagos
   Widget _buildPaymentsTab() {
-    final paymentsList = (_paymentHistory['payments'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+    final rawPayments = (_paymentHistory['payments'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+    final paymentsList = List<Map<String, dynamic>>.from(rawPayments);
+
+    // Ordenar de forma descendente (el más reciente primero)
+    paymentsList.sort((a, b) {
+      final rawA = a['paymentDate']?.toString() ?? a['createdAt']?.toString();
+      final rawB = b['paymentDate']?.toString() ?? b['createdAt']?.toString();
+      final dtA = rawA != null ? DateTime.tryParse(rawA) : null;
+      final dtB = rawB != null ? DateTime.tryParse(rawB) : null;
+      if (dtA == null && dtB == null) return 0;
+      if (dtA == null) return 1;
+      if (dtB == null) return -1;
+      return dtB.compareTo(dtA);
+    });
 
     if (paymentsList.isEmpty) {
       return const Center(
@@ -1055,9 +1277,16 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
               final rawDate = a['visitDate']?.toString() ?? a['checkInTime']?.toString();
               final dt = rawDate != null ? DateTime.tryParse(rawDate) : null;
               final device = a['device']?.toString() ?? a['accessPoint']?.toString() ?? 'Molinete Principal';
-              final status = a['status']?.toString() ?? 'AUTHORIZED';
-              final isAllowed = status == 'AUTHORIZED' || status == 'PERMITTED';
-              final reason = a['rejectionReason']?.toString() ?? a['notes']?.toString() ?? (isAllowed ? 'Acceso correcto' : 'Denegado');
+              final statusStr = a['status']?.toString().toUpperCase() ?? 'ACCEPTED';
+              final isAllowed = statusStr == 'ACCEPTED' ||
+                  statusStr == 'AUTHORIZED' ||
+                  statusStr == 'PERMITTED' ||
+                  statusStr == 'SUCCESS' ||
+                  a['success'] == true;
+              final reason = a['rejectionReason']?.toString() ??
+                  a['reason']?.toString() ??
+                  a['notes']?.toString() ??
+                  (isAllowed ? 'Acceso correcto' : 'Denegado');
 
               return DataRow(
                 cells: [
@@ -1099,12 +1328,21 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
 
   // TAB 4: Datos Personales
   Widget _buildPersonalDataTab() {
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Información Detallada de Contacto y Emergencia', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
+          // PREFERENCIAS DE MENSAJERÍA DEL SISTEMA
+          _buildNotificationPreferencesCard(),
+
+          const SizedBox(height: 24),
+
+          // INFORMACIÓN DE CONTACTO Y EMERGENCIA
+          const Text(
+            'Información Detallada de Contacto y Emergencia',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+          ),
           const SizedBox(height: 16),
           Row(
             children: [
@@ -1143,6 +1381,224 @@ class _MemberDetailDialogState extends ConsumerState<MemberDetailDialog> with Si
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNotificationPreferencesCard() {
+    final bool isAllEnabled = _currentMember.notificationsEnabled;
+    final bool emailEnabled = _currentMember.receiveEmails;
+    final bool whatsappEnabled = _currentMember.receiveWhatsapp;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E232B),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isAllEnabled
+              ? AppTheme.primary.withValues(alpha: 0.3)
+              : Colors.white.withValues(alpha: 0.08),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header del Card
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: isAllEnabled
+                        ? AppTheme.primary.withValues(alpha: 0.15)
+                        : Colors.white.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    isAllEnabled ? Icons.notifications_active_outlined : Icons.notifications_off_outlined,
+                    color: isAllEnabled ? AppTheme.primary : Colors.white38,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Text(
+                            'Mensajes y Notificaciones del Sistema',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: isAllEnabled
+                                  ? Colors.green.withValues(alpha: 0.15)
+                                  : Colors.orange.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              isAllEnabled ? 'ACTIVADOS' : 'DESACTIVADOS',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: isAllEnabled ? Colors.greenAccent : Colors.orangeAccent,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      const Text(
+                        'Controla si este socio recibe mensajes automáticos (facturas, recordatorios de vencimiento, etc.).',
+                        style: TextStyle(fontSize: 11, color: Colors.white54),
+                      ),
+                    ],
+                  ),
+                ),
+                Transform.scale(
+                  scale: 0.85,
+                  child: Switch(
+                    value: isAllEnabled,
+                    activeTrackColor: AppTheme.primary,
+                    onChanged: (val) {
+                      _updateNotificationPreference(notificationsEnabled: val);
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Sub-opciones de canal (Correo y WhatsApp)
+          if (isAllEnabled) ...[
+            const Divider(height: 1, color: Colors.white10),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Row(
+                children: [
+                  // Canal Correo Electrónico
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.black26,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: emailEnabled
+                              ? Colors.blueAccent.withValues(alpha: 0.25)
+                              : Colors.white.withValues(alpha: 0.05),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.email_outlined,
+                            size: 18,
+                            color: emailEnabled ? Colors.blueAccent : Colors.white38,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Correos Electrónicos',
+                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
+                                ),
+                                Text(
+                                  _currentMember.email?.isNotEmpty == true
+                                      ? _currentMember.email!
+                                      : 'Sin correo registrado',
+                                  style: const TextStyle(fontSize: 10, color: Colors.white54),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                          Transform.scale(
+                            scale: 0.75,
+                            child: Switch(
+                              value: emailEnabled,
+                              activeTrackColor: Colors.blueAccent,
+                              onChanged: (val) {
+                                _updateNotificationPreference(receiveEmails: val);
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+
+                  // Canal WhatsApp
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.black26,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: whatsappEnabled
+                              ? Colors.greenAccent.withValues(alpha: 0.25)
+                              : Colors.white.withValues(alpha: 0.05),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.chat_outlined,
+                            size: 18,
+                            color: whatsappEnabled ? Colors.greenAccent : Colors.white38,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Mensajes de WhatsApp',
+                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
+                                ),
+                                Text(
+                                  _currentMember.phone?.isNotEmpty == true
+                                      ? _currentMember.phone!
+                                      : 'Sin teléfono registrado',
+                                  style: const TextStyle(fontSize: 10, color: Colors.white54),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                          Transform.scale(
+                            scale: 0.75,
+                            child: Switch(
+                              value: whatsappEnabled,
+                              activeTrackColor: Colors.greenAccent,
+                              onChanged: (val) {
+                                _updateNotificationPreference(receiveWhatsapp: val);
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );

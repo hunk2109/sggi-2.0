@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "sggi_desktop" "\0"
+            VALUE "CompanyName", "SGGI" "\0"
+            VALUE "FileDescription", "SGGI 2.0 - Gestión Integral de Gimnasios" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "sggi_desktop" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 SGGI. Todos los derechos reservados." "\0"
             VALUE "OriginalFilename", "sggi_desktop.exe" "\0"
-            VALUE "ProductName", "sggi_desktop" "\0"
+            VALUE "ProductName", "SGGI 2.0" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

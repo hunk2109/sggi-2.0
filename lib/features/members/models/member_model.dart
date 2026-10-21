@@ -20,7 +20,11 @@ class MemberModel {
   final String? activePlanId;
   final DateTime? membershipEndDate;
   final bool isSuspended;
+  final double creditBalance;
   final String? role;
+  final bool notificationsEnabled;
+  final bool receiveEmails;
+  final bool receiveWhatsapp;
 
   MemberModel({
     required this.id,
@@ -44,7 +48,11 @@ class MemberModel {
     this.activePlanId,
     this.membershipEndDate,
     this.isSuspended = false,
+    this.creditBalance = 0.0,
     this.role,
+    this.notificationsEnabled = true,
+    this.receiveEmails = true,
+    this.receiveWhatsapp = true,
   });
 
   bool get isAdmin => role?.toLowerCase() == 'admin';
@@ -80,7 +88,7 @@ class MemberModel {
 
   String get statusLabel {
     if (isSuspended) return 'Suspendido';
-    if (!hasMembership && activePlanName == null) return 'Sin Plan';
+    if (!hasMembership || activePlanName == null) return 'Sin Plan';
     if (hasPendingPayment) return 'Pago Pendiente';
     if (isExpired) return 'Vencido';
     return 'Al Día';
@@ -98,22 +106,31 @@ class MemberModel {
     String? planName;
     String? planId;
     DateTime? endDate;
-    Map<String, dynamic>? activeMem = json['activeMembership'] as Map<String, dynamic>? ??
-        json['membership'] as Map<String, dynamic>? ??
-        json['currentMembership'] as Map<String, dynamic>?;
+    Map<String, dynamic>? activeMem = json['activeMembership'] as Map<String, dynamic>?;
+
+    if (activeMem != null && activeMem['isActive'] == false) {
+      activeMem = null;
+    }
+
+    if (activeMem == null) {
+      final currentMem = json['currentMembership'] as Map<String, dynamic>?;
+      if (currentMem != null && currentMem['isActive'] == true) {
+        activeMem = currentMem;
+      }
+    }
 
     if (activeMem == null && json['memberships'] is List && (json['memberships'] as List).isNotEmpty) {
       final list = json['memberships'] as List;
       final found = list.firstWhere(
-        (m) => m is Map && (m['isActive'] == true || m['endDate'] != null),
-        orElse: () => list.first,
+        (m) => m is Map && m['isActive'] == true,
+        orElse: () => null,
       );
       if (found is Map) {
         activeMem = found.cast<String, dynamic>();
       }
     }
 
-    if (activeMem != null) {
+    if (activeMem != null && activeMem['isActive'] != false) {
       final innerPlan = activeMem['membership'] as Map<String, dynamic>? ??
           activeMem['plan'] as Map<String, dynamic>?;
       planName = innerPlan?['name']?.toString() ??
@@ -128,30 +145,12 @@ class MemberModel {
       }
     }
 
-    if (planName == null) {
-      if (json['membership'] is Map) {
-        planName = (json['membership'] as Map)['name']?.toString();
-        planId ??= (json['membership'] as Map)['id']?.toString();
-      } else if (json['activePlanName'] != null) {
-        planName = json['activePlanName']?.toString();
-      }
-    }
-    if (planId == null) {
-      if (json['membershipId'] != null) {
-        planId = json['membershipId']?.toString();
-      }
-    }
-    if (endDate == null && json['membershipEndDate'] != null) {
-      endDate = DateTime.tryParse(json['membershipEndDate'].toString())?.toLocal();
-    }
+    final bool hasMem = activeMem != null && activeMem['isActive'] == true && json['hasMembership'] != false;
 
-    final bool hasMem = json['hasMembership'] == true ||
-        json['hasMembership'] == 1 ||
-        planName != null ||
-        (activeMem != null && activeMem['isActive'] != false);
-
-    if (hasMem && planName == null) {
-      planName = 'Plan Activo';
+    if (!hasMem) {
+      planName = null;
+      planId = null;
+      endDate = null;
     }
 
     DateTime parsedJoin = DateTime.now();
@@ -193,7 +192,75 @@ class MemberModel {
       activePlanId: planId,
       membershipEndDate: endDate,
       isSuspended: json['isMembershipSuspended'] == true || json['isMembershipSuspended'] == 1,
+      creditBalance: double.tryParse(json['creditBalance']?.toString() ?? '') ?? 0.0,
       role: userMap?['role']?.toString() ?? json['role']?.toString(),
+      notificationsEnabled: json['notificationsEnabled'] != null
+          ? (json['notificationsEnabled'] == true || json['notificationsEnabled'] == 1 || json['notificationsEnabled'] == 'true')
+          : true,
+      receiveEmails: json['receiveEmails'] != null
+          ? (json['receiveEmails'] == true || json['receiveEmails'] == 1 || json['receiveEmails'] == 'true')
+          : true,
+      receiveWhatsapp: json['receiveWhatsapp'] != null
+          ? (json['receiveWhatsapp'] == true || json['receiveWhatsapp'] == 1 || json['receiveWhatsapp'] == 'true')
+          : true,
+    );
+  }
+
+  MemberModel copyWith({
+    String? id,
+    String? userId,
+    String? memberCode,
+    String? firstName,
+    String? lastName,
+    String? email,
+    String? phone,
+    String? documentId,
+    String? gender,
+    DateTime? dateOfBirth,
+    String? address,
+    String? emergencyContact,
+    String? emergencyPhone,
+    DateTime? joinDate,
+    bool? isPaid,
+    bool? hasMembership,
+    bool? hasPendingPayment,
+    String? activePlanName,
+    String? activePlanId,
+    DateTime? membershipEndDate,
+    bool? isSuspended,
+    double? creditBalance,
+    String? role,
+    bool? notificationsEnabled,
+    bool? receiveEmails,
+    bool? receiveWhatsapp,
+  }) {
+    return MemberModel(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      memberCode: memberCode ?? this.memberCode,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
+      email: email ?? this.email,
+      phone: phone ?? this.phone,
+      documentId: documentId ?? this.documentId,
+      gender: gender ?? this.gender,
+      dateOfBirth: dateOfBirth ?? this.dateOfBirth,
+      address: address ?? this.address,
+      emergencyContact: emergencyContact ?? this.emergencyContact,
+      emergencyPhone: emergencyPhone ?? this.emergencyPhone,
+      joinDate: joinDate ?? this.joinDate,
+      isPaid: isPaid ?? this.isPaid,
+      hasMembership: hasMembership ?? this.hasMembership,
+      hasPendingPayment: hasPendingPayment ?? this.hasPendingPayment,
+      activePlanName: activePlanName ?? this.activePlanName,
+      activePlanId: activePlanId ?? this.activePlanId,
+      membershipEndDate: membershipEndDate ?? this.membershipEndDate,
+      isSuspended: isSuspended ?? this.isSuspended,
+      creditBalance: creditBalance ?? this.creditBalance,
+      role: role ?? this.role,
+      notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
+      receiveEmails: receiveEmails ?? this.receiveEmails,
+      receiveWhatsapp: receiveWhatsapp ?? this.receiveWhatsapp,
     );
   }
 

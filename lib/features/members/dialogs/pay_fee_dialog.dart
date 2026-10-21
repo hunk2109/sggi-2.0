@@ -113,6 +113,18 @@ class _PayFeeDialogState extends ConsumerState<PayFeeDialog> {
   }
 
   Future<void> _handleConfirmPayment() async {
+    if (_selectedMethod == 'credit_balance' && widget.member.creditBalance < _finalAmount) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Saldo a favor insuficiente (${_currencyFormat.format(widget.member.creditBalance)}). La cuota es de ${_currencyFormat.format(_finalAmount)}.',
+          ),
+          backgroundColor: AppTheme.warning,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSubmitting = true);
 
     final service = ref.read(memberServiceProvider);
@@ -144,8 +156,13 @@ class _PayFeeDialogState extends ConsumerState<PayFeeDialog> {
         widget.onPaymentSuccess?.call();
         Navigator.of(context).pop(true);
 
+        ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            behavior: SnackBarBehavior.floating,
+            showCloseIcon: true,
+            closeIconColor: Colors.white,
+            width: 580,
             content: Row(
               children: [
                 const Icon(Icons.check_circle_outline, color: Colors.white),
@@ -154,7 +171,7 @@ class _PayFeeDialogState extends ConsumerState<PayFeeDialog> {
               ],
             ),
             backgroundColor: AppTheme.success,
-            duration: const Duration(seconds: 8),
+            duration: const Duration(seconds: 5),
             action: SnackBarAction(
               label: 'IMPRIMIR RECIBO',
               textColor: Colors.amberAccent,
@@ -552,6 +569,30 @@ class _PayFeeDialogState extends ConsumerState<PayFeeDialog> {
                 ),
               ),
 
+              if (widget.member.creditBalance > 0) ...[
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.teal.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.tealAccent.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.account_balance_wallet, size: 20, color: Colors.tealAccent),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'El socio dispone de ${_currencyFormat.format(widget.member.creditBalance)} de Saldo a Favor disponible para aplicar a este pago.',
+                          style: const TextStyle(fontSize: 12, color: Colors.white),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
               const SizedBox(height: 18),
 
               // Selector de Método de Pago
@@ -570,6 +611,12 @@ class _PayFeeDialogState extends ConsumerState<PayFeeDialog> {
                   Expanded(
                     child: _buildPaymentMethodChip('transfer', 'Transferencia', Icons.account_balance),
                   ),
+                  if (widget.member.creditBalance > 0) ...[
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildPaymentMethodChip('credit_balance', 'Saldo a Favor', Icons.account_balance_wallet),
+                    ),
+                  ],
                 ],
               ),
 
