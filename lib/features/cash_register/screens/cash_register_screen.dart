@@ -163,6 +163,7 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
     final canClose = authState.hasPermission(AppPermissions.cashClose);
     final canWithdraw = authState.hasPermission(AppPermissions.cashWithdraw);
     final canViewHistory = authState.hasPermission(AppPermissions.cashViewHistory);
+    final canVoidSale = authState.hasPermission(AppPermissions.posVoidSale);
 
     return Padding(
       padding: const EdgeInsets.all(24),
@@ -272,6 +273,7 @@ class _CashRegisterScreenState extends ConsumerState<CashRegisterScreen> with Si
               children: [
                 SalesHistoryTab(
                   state: state,
+                  canVoidSale: canVoidSale,
                   onOpenRegister: _openOpenDialog,
                   onViewSale: _showSaleDetailDialog,
                   onReprintSale: _reprintSaleReceipt,

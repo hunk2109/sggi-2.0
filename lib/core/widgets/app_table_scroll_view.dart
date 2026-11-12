@@ -7,6 +7,7 @@ class AppTableScrollView extends StatefulWidget {
   final double? minWidth;
   final EdgeInsetsGeometry? padding;
   final bool expandChildToWidth;
+  final bool enableVerticalScroll;
 
   const AppTableScrollView({
     super.key,
@@ -14,6 +15,7 @@ class AppTableScrollView extends StatefulWidget {
     this.minWidth,
     this.padding,
     this.expandChildToWidth = false,
+    this.enableVerticalScroll = true,
   });
 
   @override
@@ -59,6 +61,25 @@ class _AppTableScrollViewState extends State<AppTableScrollView> {
                 constraints: BoxConstraints(minWidth: minW),
                 child: innerContent,
               );
+
+        final Widget horizontalScroll = Scrollbar(
+          controller: _horizontalController,
+          thumbVisibility: true,
+          trackVisibility: true,
+          thickness: 10,
+          radius: const Radius.circular(5),
+          notificationPredicate: (notif) => notif.metrics.axis == Axis.horizontal,
+          child: SingleChildScrollView(
+            controller: _horizontalController,
+            scrollDirection: Axis.horizontal,
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: contentWithSizing,
+          ),
+        );
+
+        if (!widget.enableVerticalScroll) {
+          return horizontalScroll;
+        }
 
         return Scrollbar(
           controller: _horizontalController,

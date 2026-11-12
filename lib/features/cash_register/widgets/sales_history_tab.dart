@@ -8,6 +8,7 @@ import 'payment_method_badge.dart';
 
 class SalesHistoryTab extends StatefulWidget {
   final CashRegisterState state;
+  final bool canVoidSale;
   final VoidCallback onOpenRegister;
   final ValueChanged<SaleHistoryModel> onViewSale;
   final ValueChanged<SaleHistoryModel> onReprintSale;
@@ -16,6 +17,7 @@ class SalesHistoryTab extends StatefulWidget {
   const SalesHistoryTab({
     super.key,
     required this.state,
+    required this.canVoidSale,
     required this.onOpenRegister,
     required this.onViewSale,
     required this.onReprintSale,
@@ -284,7 +286,7 @@ class _SalesHistoryTabState extends State<SalesHistoryTab> {
                                       tooltip: 'Reimprimir Ticket (Windows)',
                                       onPressed: () => widget.onReprintSale(sale),
                                     ),
-                                  if (!isCancelled && state.isRegisterOpen)
+                                  if (!isCancelled && state.isRegisterOpen && widget.canVoidSale)
                                     IconButton(
                                       icon: const Icon(Icons.cancel_outlined, size: 18, color: Colors.redAccent),
                                       tooltip: 'Anular Venta de este Turno',

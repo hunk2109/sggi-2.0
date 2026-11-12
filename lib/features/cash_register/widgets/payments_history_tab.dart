@@ -192,12 +192,17 @@ class _PaymentsHistoryTabState extends State<PaymentsHistoryTab> {
                         DataColumn(label: Text('Estado', style: TextStyle(fontWeight: FontWeight.bold))),
                       ],
                       rows: filteredPayments.map((p) {
+                        final isCancelled = p.status == 'cancelled';
                         return DataRow(
                           cells: [
                             DataCell(
                               Text(
                                 '#${p.shortId}',
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                  decoration: isCancelled ? TextDecoration.lineThrough : null,
+                                ),
                               ),
                             ),
                             DataCell(Text(_timeFormat.format(p.paymentDate ?? p.createdAt), style: const TextStyle(fontSize: 12))),
@@ -222,22 +227,27 @@ class _PaymentsHistoryTabState extends State<PaymentsHistoryTab> {
                             DataCell(
                               Text(
                                 _currency.format(p.amount),
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.greenAccent),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  color: isCancelled ? Colors.redAccent.withValues(alpha: 0.6) : Colors.greenAccent,
+                                  decoration: isCancelled ? TextDecoration.lineThrough : null,
+                                ),
                               ),
                             ),
                             DataCell(
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                 decoration: BoxDecoration(
-                                  color: Colors.green.withValues(alpha: 0.15),
+                                  color: isCancelled ? Colors.red.withValues(alpha: 0.15) : Colors.green.withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
-                                child: const Text(
-                                  'COMPLETADO',
+                                child: Text(
+                                  isCancelled ? 'ANULADO' : 'COMPLETADO',
                                   style: TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold,
-                                    color: Colors.greenAccent,
+                                    color: isCancelled ? Colors.redAccent : Colors.greenAccent,
                                   ),
                                 ),
                               ),

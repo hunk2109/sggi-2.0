@@ -79,6 +79,7 @@ class _ClosureHistoryCardState extends ConsumerState<ClosureHistoryCard> {
     final isBalanced = diff.abs() < 0.01;
     final shiftSales = _shiftSales ?? [];
     final shiftPayments = _shiftPayments ?? [];
+    final billBreakdown = reg.parsedBillBreakdown;
 
     return Container(
       decoration: BoxDecoration(
@@ -258,7 +259,7 @@ class _ClosureHistoryCardState extends ConsumerState<ClosureHistoryCard> {
                         ),
                       ),
                     )
-                  : (shiftSales.isEmpty && shiftPayments.isEmpty)
+                  : (shiftSales.isEmpty && shiftPayments.isEmpty && billBreakdown.isEmpty)
                       ? const Padding(
                           padding: EdgeInsets.symmetric(vertical: 20),
                           child: Center(
@@ -283,7 +284,7 @@ class _ClosureHistoryCardState extends ConsumerState<ClosureHistoryCard> {
                               builder: (context) {
                                 final activeSales = shiftSales.where((s) => s.status != 'cancelled');
                                 final cashSales = activeSales
-                                    .where((s) => s.paymentMethod.toLowerCase() == 'cash' || s.paymentMethod.toLowerCase() == 'efectivo' || s.paymentMethod.isEmpty)
+                                    .where((s) => s.isCash)
                                     .fold(0.0, (sum, s) => sum + s.totalAmount);
                                 final cardSales = activeSales
                                     .where((s) => s.paymentMethod.toLowerCase() == 'card' || s.paymentMethod.toLowerCase() == 'tarjeta')
@@ -294,7 +295,7 @@ class _ClosureHistoryCardState extends ConsumerState<ClosureHistoryCard> {
 
                                 final activePayments = shiftPayments.where((p) => p.status != 'cancelled');
                                 final cashPayments = activePayments
-                                    .where((p) => p.paymentMethod.toLowerCase() == 'cash' || p.paymentMethod.toLowerCase() == 'efectivo' || p.paymentMethod.isEmpty)
+                                    .where((p) => p.isCash)
                                     .fold(0.0, (sum, p) => sum + p.amount);
                                 final cardPayments = activePayments
                                     .where((p) => p.paymentMethod.toLowerCase() == 'card' || p.paymentMethod.toLowerCase() == 'tarjeta')
@@ -311,7 +312,7 @@ class _ClosureHistoryCardState extends ConsumerState<ClosureHistoryCard> {
                                 final expectedCash = reg.expectedClosure ?? (openingCash + totalCashIncome);
 
                                 return Container(
-                                  margin: const EdgeInsets.only(bottom: 20),
+                                  margin: const EdgeInsets.only(bottom: 16),
                                   padding: const EdgeInsets.all(14),
                                   decoration: BoxDecoration(
                                     color: const Color(0xFF161A22),
@@ -447,6 +448,45 @@ class _ClosureHistoryCardState extends ConsumerState<ClosureHistoryCard> {
                                           ),
                                         ],
                                       ),
+                                      if (billBreakdown.isNotEmpty) ...[
+                                        const Divider(height: 22, color: Colors.white10),
+                                        const Row(
+                                          children: [
+                                            Icon(Icons.payments_outlined, size: 15, color: Colors.amberAccent),
+                                            SizedBox(width: 6),
+                                            Text(
+                                              'Desglose de Billetes y Monedas al Cierre:',
+                                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white70),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Wrap(
+                                          spacing: 8,
+                                          runSpacing: 6,
+                                          children: billBreakdown.entries.map((entry) {
+                                            final denom = entry.key;
+                                            final count = entry.value;
+                                            final subtotal = denom * count;
+                                            return Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                              decoration: BoxDecoration(
+                                                color: Colors.amber.withValues(alpha: 0.1),
+                                                borderRadius: BorderRadius.circular(6),
+                                                border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+                                              ),
+                                              child: Text(
+                                                '${count}x RD\$ $denom = ${_currency.format(subtotal)}',
+                                                style: const TextStyle(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.amberAccent,
+                                                ),
+                                              ),
+                                            );
+                                          }).toList(),
+                                        ),
+                                      ],
                                     ],
                                   ),
                                 );
@@ -459,7 +499,7 @@ class _ClosureHistoryCardState extends ConsumerState<ClosureHistoryCard> {
                                   Row(
                                     children: [
                                       const Icon(Icons.receipt_long, size: 16, color: AppTheme.primary),
-                                      SizedBox(width: 8),
+                                      const SizedBox(width: 8),
                                       Text(
                                         'Ventas mostrador en este turno (${shiftSales.length})',
                                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
@@ -475,6 +515,7 @@ class _ClosureHistoryCardState extends ConsumerState<ClosureHistoryCard> {
                               const SizedBox(height: 10),
                               AppTableScrollView(
                                 minWidth: 900,
+                                enableVerticalScroll: false,
                                 child: DataTable(
                                   headingRowHeight: 36,
                                   dataRowMinHeight: 44,
@@ -581,18 +622,18 @@ class _ClosureHistoryCardState extends ConsumerState<ClosureHistoryCard> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Row(
+                                  Row(
                                     children: [
-                                      Icon(Icons.card_membership, size: 16, color: Colors.cyanAccent),
-                                      SizedBox(width: 8),
+                                      const Icon(Icons.card_membership, size: 16, color: Colors.cyanAccent),
+                                      const SizedBox(width: 8),
                                       Text(
-                                        'Cobros de membresías en este turno',
-                                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
+                                        'Cobros de membresías en este turno (${shiftPayments.length})',
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
                                       ),
                                     ],
                                   ),
                                   Text(
-                                    'Subtotal Membresías: ${_currency.format(shiftPayments.fold(0.0, (sum, p) => sum + p.amount))}',
+                                    'Subtotal Membresías: ${_currency.format(shiftPayments.where((p) => p.status != 'cancelled').fold(0.0, (sum, p) => sum + p.amount))}',
                                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.cyanAccent),
                                   ),
                                 ],
@@ -600,6 +641,7 @@ class _ClosureHistoryCardState extends ConsumerState<ClosureHistoryCard> {
                               const SizedBox(height: 10),
                               AppTableScrollView(
                                 minWidth: 900,
+                                enableVerticalScroll: false,
                                 child: DataTable(
                                   headingRowHeight: 36,
                                   dataRowMinHeight: 44,
@@ -616,9 +658,19 @@ class _ClosureHistoryCardState extends ConsumerState<ClosureHistoryCard> {
                                     DataColumn(label: Text('Estado', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
                                   ],
                                   rows: shiftPayments.map((p) {
+                                    final isCancelled = p.status == 'cancelled';
                                     return DataRow(
                                       cells: [
-                                        DataCell(Text('#${p.shortId}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                                        DataCell(
+                                          Text(
+                                            '#${p.shortId}',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 12,
+                                              decoration: isCancelled ? TextDecoration.lineThrough : null,
+                                            ),
+                                          ),
+                                        ),
                                         DataCell(Text(_timeFormat.format(p.paymentDate ?? p.createdAt), style: const TextStyle(fontSize: 12))),
                                         DataCell(
                                           Column(
@@ -641,22 +693,27 @@ class _ClosureHistoryCardState extends ConsumerState<ClosureHistoryCard> {
                                         DataCell(
                                           Text(
                                             _currency.format(p.amount),
-                                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.greenAccent),
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 12,
+                                              color: isCancelled ? Colors.redAccent.withValues(alpha: 0.6) : Colors.greenAccent,
+                                              decoration: isCancelled ? TextDecoration.lineThrough : null,
+                                            ),
                                           ),
                                         ),
                                         DataCell(
                                           Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                             decoration: BoxDecoration(
-                                              color: Colors.green.withValues(alpha: 0.15),
+                                              color: isCancelled ? Colors.red.withValues(alpha: 0.15) : Colors.green.withValues(alpha: 0.15),
                                               borderRadius: BorderRadius.circular(4),
                                             ),
-                                            child: const Text(
-                                              'COMPLETADO',
+                                            child: Text(
+                                              isCancelled ? 'ANULADO' : 'COMPLETADO',
                                               style: TextStyle(
                                                 fontSize: 9,
                                                 fontWeight: FontWeight.bold,
-                                                color: Colors.greenAccent,
+                                                color: isCancelled ? Colors.redAccent : Colors.greenAccent,
                                               ),
                                             ),
                                           ),

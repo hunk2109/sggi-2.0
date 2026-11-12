@@ -24,7 +24,10 @@ class ShiftPaymentModel {
   });
 
   String get shortId => id.length >= 8 ? id.substring(0, 8).toUpperCase() : id.toUpperCase();
-  bool get isCash => paymentMethod.toLowerCase() == 'cash' || paymentMethod.isEmpty;
+  bool get isCash {
+    final m = paymentMethod.trim().toLowerCase();
+    return m == 'cash' || m == 'efectivo' || m.isEmpty;
+  }
   String get planName => concept;
   String? get notes => concept;
 

@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../auth/providers/auth_provider.dart';
 import '../models/cash_register_model.dart';
 import '../models/sale_history_model.dart';
@@ -32,38 +33,56 @@ class CashRegisterState {
   });
 
   bool get isRegisterOpen => currentRegister != null && currentRegister!.isOpen;
-  double get totalWithdrawals => currentTransactions.where((t) => t.isOut).fold(0.0, (sum, t) => sum + t.amount);
-  double get totalInflows => currentTransactions.where((t) => t.isIn).fold(0.0, (sum, t) => sum + t.amount);
-  
+  double get totalWithdrawals => currentTransactions
+      .where((t) => t.isOut)
+      .fold(0.0, (sum, t) => sum + t.amount);
+  double get totalInflows => currentTransactions
+      .where((t) => t.isIn)
+      .fold(0.0, (sum, t) => sum + t.amount);
+
   // Ventas de Mostrador (POS)
   double get totalSalesAmount => isRegisterOpen
-      ? sales.where((s) => s.status != 'cancelled').fold(0.0, (sum, s) => sum + s.totalAmount)
+      ? sales
+            .where((s) => s.status != 'cancelled')
+            .fold(0.0, (sum, s) => sum + s.totalAmount)
       : 0.0;
   double get cashSalesAmount => isRegisterOpen
-      ? sales.where((s) => s.status != 'cancelled' && (s.paymentMethod == 'cash' || s.paymentMethod.isEmpty)).fold(0.0, (sum, s) => sum + s.totalAmount)
+      ? sales
+            .where((s) => s.status != 'cancelled' && s.isCash)
+            .fold(0.0, (sum, s) => sum + s.totalAmount)
       : 0.0;
-  int get completedSalesCount => isRegisterOpen
-      ? sales.where((s) => s.status != 'cancelled').length
-      : 0;
+  int get completedSalesCount =>
+      isRegisterOpen ? sales.where((s) => s.status != 'cancelled').length : 0;
 
   // Cobros de Membresías del Turno
   double get totalPaymentsAmount => isRegisterOpen
-      ? payments.where((p) => p.status != 'cancelled').fold(0.0, (sum, p) => sum + p.amount)
+      ? payments
+            .where((p) => p.status != 'cancelled')
+            .fold(0.0, (sum, p) => sum + p.amount)
       : 0.0;
   double get cashPaymentsAmount => isRegisterOpen
-      ? payments.where((p) => p.status != 'cancelled' && p.isCash).fold(0.0, (sum, p) => sum + p.amount)
+      ? payments
+            .where((p) => p.status != 'cancelled' && p.isCash)
+            .fold(0.0, (sum, p) => sum + p.amount)
       : 0.0;
   double get otherPaymentsAmount => isRegisterOpen
-      ? payments.where((p) => p.status != 'cancelled' && !p.isCash).fold(0.0, (sum, p) => sum + p.amount)
+      ? payments
+            .where((p) => p.status != 'cancelled' && !p.isCash)
+            .fold(0.0, (sum, p) => sum + p.amount)
       : 0.0;
   int get completedPaymentsCount => isRegisterOpen
       ? payments.where((p) => p.status != 'cancelled').length
       : 0;
 
   // Totales Combinados
-  double get totalShiftRevenue => totalSalesAmount + totalPaymentsAmount + totalInflows;
+  double get totalShiftRevenue =>
+      totalSalesAmount + totalPaymentsAmount + totalInflows;
   double get totalCashInDrawer => isRegisterOpen
-      ? (currentRegister!.openingAmount + cashSalesAmount + cashPaymentsAmount + totalInflows - totalWithdrawals)
+      ? (currentRegister!.openingAmount +
+            cashSalesAmount +
+            cashPaymentsAmount +
+            totalInflows -
+            totalWithdrawals)
       : 0.0;
 
   CashRegisterState copyWith({
@@ -80,7 +99,9 @@ class CashRegisterState {
     return CashRegisterState(
       isLoading: isLoading ?? this.isLoading,
       isProcessing: isProcessing ?? this.isProcessing,
-      currentRegister: clearCurrent ? null : (currentRegister ?? this.currentRegister),
+      currentRegister: clearCurrent
+          ? null
+          : (currentRegister ?? this.currentRegister),
       history: history ?? this.history,
       currentTransactions: currentTransactions ?? this.currentTransactions,
       sales: sales ?? this.sales,
@@ -177,7 +198,11 @@ class CashRegisterNotifier extends Notifier<CashRegisterState> {
     final service = ref.read(cashRegisterServiceProvider);
 
     try {
-      await service.recordCashWithdrawal(cashRegisterId: reg.id, concept: concept, amount: amount);
+      await service.recordCashWithdrawal(
+        cashRegisterId: reg.id,
+        concept: concept,
+        amount: amount,
+      );
       final txs = await service.getCashTransactions(reg.id);
       state = state.copyWith(isProcessing: false, currentTransactions: txs);
       return true;
@@ -227,6 +252,7 @@ class CashRegisterNotifier extends Notifier<CashRegisterState> {
   }
 }
 
-final cashRegisterProvider = NotifierProvider<CashRegisterNotifier, CashRegisterState>(() {
-  return CashRegisterNotifier();
-});
+final cashRegisterProvider =
+    NotifierProvider<CashRegisterNotifier, CashRegisterState>(() {
+      return CashRegisterNotifier();
+    });

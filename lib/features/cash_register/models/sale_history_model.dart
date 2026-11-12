@@ -130,4 +130,9 @@ class SaleHistoryModel {
   }
 
   String get shortId => id.length > 8 ? id.substring(0, 8).toUpperCase() : id.toUpperCase();
+
+  bool get isCash {
+    final m = paymentMethod.trim().toLowerCase();
+    return m == 'cash' || m == 'efectivo' || m.isEmpty;
+  }
 }

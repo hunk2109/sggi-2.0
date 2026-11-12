@@ -212,7 +212,7 @@ class _CloseCashDialogState extends ConsumerState<CloseCashDialog> {
     // Filter sales from current shift
     final cashSales = state.cashSalesAmount;
     final otherSales = state.sales
-        .where((s) => s.status != 'cancelled' && s.paymentMethod != 'cash' && s.paymentMethod.isNotEmpty)
+        .where((s) => s.status != 'cancelled' && !s.isCash)
         .fold(0.0, (sum, s) => sum + s.totalAmount);
 
     final cashPayments = state.cashPaymentsAmount;
