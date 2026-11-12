@@ -48,3 +48,7 @@ app.*.map.json
 .widget_preview/
 # Temporary files
 .temp/
+
+# NSIS Installer staging and build output
+/installer/staging/
+/installer/output/

@@ -1,9 +1,13 @@
+import 'dart:async';
 import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:window_manager/window_manager.dart';
+
 import 'core/license/license_provider.dart';
+import 'core/network/backend_launcher_service.dart';
 import 'core/storage/storage_service.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/providers/auth_provider.dart';
@@ -11,8 +15,18 @@ import 'features/auth/screens/login_screen.dart';
 import 'features/license/screens/activation_screen.dart';
 import 'features/shell/screens/main_shell_screen.dart';
 
+class _AppWindowListener extends WindowListener {
+  @override
+  void onWindowClose() {
+    BackendLauncherService.instance.stopBackend();
+  }
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Iniciar el backend empaquetado en segundo plano si no está corriendo
+  unawaited(BackendLauncherService.instance.ensureBackendRunning());
 
   // Initialize Intl Spanish locale data
   try {
@@ -22,6 +36,7 @@ void main() async {
 
   // Desktop Window Configuration
   await windowManager.ensureInitialized();
+  windowManager.addListener(_AppWindowListener());
   const windowOptions = WindowOptions(
     size: Size(1280, 800),
     minimumSize: Size(1024, 700),
@@ -42,9 +57,7 @@ void main() async {
 
   runApp(
     ProviderScope(
-      overrides: [
-        storageServiceProvider.overrideWithValue(storageService),
-      ],
+      overrides: [storageServiceProvider.overrideWithValue(storageService)],
       child: const SggiApp(),
     ),
   );
