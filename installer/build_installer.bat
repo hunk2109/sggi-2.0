@@ -60,8 +60,6 @@ cd /d "%BACKEND_DIR%" || exit /b 1
     --exclude="node_modules/ts-jest" ^
     --exclude="node_modules/prettier*" ^
     --exclude="node_modules/supertest" ^
-    --exclude="node_modules/puppeteer*" ^
-    --exclude="node_modules/@puppeteer*" ^
     dist src/modules/sync/scripts package.json node_modules
 if errorlevel 1 (
     echo [ERROR] Fallo al empaquetar backend_bundle.tar.

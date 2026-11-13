@@ -4,6 +4,7 @@
 Unicode True
 !include "MUI2.nsh"
 !include "FileFunc.nsh"
+!include "x64.nsh"
 
 ; ----------------------------------------------------------------------------
 ; Información General del Producto
@@ -80,8 +81,15 @@ Section "SGGI 2.0 (Cliente + Servidor Backend)" SecMain
   File "staging\backend\backend_bundle.tar"
 
   DetailPrint "Descomprimiendo paquete del servidor Backend..."
-  nsExec::ExecToLog '"$SYSDIR\tar.exe" -xf "$INSTDIR\backend\backend_bundle.tar" -C "$INSTDIR\backend"'
-  Delete "$INSTDIR\backend\backend_bundle.tar"
+  ${If} ${RunningX64}
+    ${DisableX64FSRedirection}
+  ${EndIf}
+  nsExec::ExecToLog '"$WINDIR\System32\tar.exe" -xf "$INSTDIR\backend\backend_bundle.tar" -C "$INSTDIR\backend"'
+  ${If} ${RunningX64}
+    ${EnableX64FSRedirection}
+  ${EndIf}
+  IfFileExists "$INSTDIR\backend\dist\main.js" 0 +2
+    Delete "$INSTDIR\backend\backend_bundle.tar"
 
   ; Copiar archivo .env solo si no existe previamente (preserva configuración en actualizaciones)
   SetOverwrite off

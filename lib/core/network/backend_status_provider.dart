@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../constants/api_constants.dart';
+import 'backend_launcher_service.dart';
 
 enum BackendConnectionState {
   checking,
@@ -95,6 +96,7 @@ class BackendStatusNotifier extends Notifier<BackendStatus> {
         lastChecked: DateTime.now(),
         errorMessage: e.toString(),
       );
+      unawaited(BackendLauncherService.instance.ensureBackendRunning());
     }
   }
 }
