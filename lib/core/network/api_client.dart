@@ -1,4 +1,5 @@
 ﻿import 'package:dio/dio.dart';
+
 import '../constants/api_constants.dart';
 import '../storage/storage_service.dart';
 
@@ -30,7 +31,11 @@ class ApiClient {
           return handler.next(options);
         },
         onError: (DioException error, handler) {
-          if (error.response?.statusCode == 401) {
+          final path = error.requestOptions.path;
+          final isAuthRoute =
+              path.contains(ApiConstants.login) ||
+              path.contains(ApiConstants.logout);
+          if (error.response?.statusCode == 401 && !isAuthRoute) {
             storageService.clearSession();
             onUnauthorized?.call();
           }

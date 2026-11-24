@@ -13,7 +13,12 @@ final storageServiceProvider = Provider<StorageService>((ref) {
 
 final apiClientProvider = Provider<ApiClient>((ref) {
   final storage = ref.watch(storageServiceProvider);
-  return ApiClient(storageService: storage);
+  return ApiClient(
+    storageService: storage,
+    onUnauthorized: () {
+      ref.read(authProvider.notifier).handleSessionExpired();
+    },
+  );
 });
 
 class AuthState {
@@ -204,6 +209,16 @@ class AuthNotifier extends Notifier<AuthState> {
     } catch (_) {}
     await storage.clearSession();
     state = const AuthState();
+  }
+
+  /// Cierra la sesión localmente cuando el backend responde 401 (token expirado o inválido).
+  Future<void> handleSessionExpired() async {
+    if (!state.isAuthenticated) return;
+    final storage = ref.read(storageServiceProvider);
+    await storage.clearSession();
+    state = const AuthState(
+      error: 'Tu sesión ha expirado. Inicia sesión nuevamente.',
+    );
   }
 
   Future<Map<String, dynamic>> updateProfile({

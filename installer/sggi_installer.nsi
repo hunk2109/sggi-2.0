@@ -11,12 +11,12 @@ Unicode True
 ; ----------------------------------------------------------------------------
 !define APP_NAME "SGGI 2.0"
 !define APP_PUBLISHER "SGGI - Gestión Integral de Gimnasios"
-!define APP_VERSION "2.0.0"
+!define APP_VERSION "2.0.1"
 !define APP_EXE "sggi_desktop.exe"
 !define UNINSTALL_REG_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\SGGI2"
 
 Name "${APP_NAME} v${APP_VERSION}"
-OutFile "output\SGGI_2.0_Setup.exe"
+OutFile "output\SGGI_2.0.1_Setup.exe"
 
 ; Instalamos por defecto en C:\SGGI 2.0 para que el backend y scripts de Access
 ; tengan permisos completos de lectura/escritura (.env, logs, caché WhatsApp, .mdb)
@@ -52,7 +52,7 @@ SetCompressorDictSize 32
 ; ----------------------------------------------------------------------------
 ; Metadatos del Ejecutable Instalador
 ; ----------------------------------------------------------------------------
-VIProductVersion "2.0.0.0"
+VIProductVersion "2.0.1.0"
 VIAddVersionKey /LANG=${LANG_SPANISH} "ProductName" "${APP_NAME}"
 VIAddVersionKey /LANG=${LANG_SPANISH} "CompanyName" "${APP_PUBLISHER}"
 VIAddVersionKey /LANG=${LANG_SPANISH} "FileDescription" "Instalador Completo de ${APP_NAME} (Frontend + Backend)"

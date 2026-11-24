@@ -66,10 +66,19 @@ void main() async {
 class SggiApp extends ConsumerWidget {
   const SggiApp({super.key});
 
+  static final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authProvider);
     final license = ref.watch(licenseProvider);
+
+    // Si la sesión se cierra o expira mientras hay diálogos abiertos, cerrarlos limpiamente
+    ref.listen<AuthState>(authProvider, (previous, next) {
+      if ((previous?.isAuthenticated ?? false) && !next.isAuthenticated) {
+        _navigatorKey.currentState?.popUntil((route) => route.isFirst);
+      }
+    });
 
     final Widget home;
     if (!license.isActivated) {
@@ -81,6 +90,7 @@ class SggiApp extends ConsumerWidget {
     }
 
     return MaterialApp(
+      navigatorKey: _navigatorKey,
       title: 'SGGI 2.0',
       debugShowCheckedModeBanner: false,
       scrollBehavior: const MaterialScrollBehavior().copyWith(

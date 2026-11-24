@@ -81,7 +81,7 @@ echo       [OK] Paquete del Backend preparado.
 echo.
 
 :: 4. Ejecutar NSIS (makensis.exe)
-echo [4/4] Generando instalador SGGI_2.0_Setup.exe con NSIS...
+echo [4/4] Generando instalador SGGI_2.0.1_Setup.exe con NSIS...
 set "MAKENSIS="
 if exist "C:\Program Files (x86)\NSIS\makensis.exe" set "MAKENSIS=C:\Program Files (x86)\NSIS\makensis.exe"
 if exist "C:\Program Files\NSIS\makensis.exe" set "MAKENSIS=C:\Program Files\NSIS\makensis.exe"
@@ -105,6 +105,6 @@ if errorlevel 1 (
 echo.
 echo ============================================================================
 echo   [EXITO] Instalador creado en:
-echo   %OUTPUT_DIR%\SGGI_2.0_Setup.exe
+echo   %OUTPUT_DIR%\SGGI_2.0.1_Setup.exe
 echo ============================================================================
 exit /b 0

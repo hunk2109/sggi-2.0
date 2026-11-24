@@ -6,6 +6,9 @@ class StorageService {
   static const String _tokenKey = 'sggi_auth_token';
   static const String _userKey = 'sggi_auth_user';
   static const String _themeModeKey = 'sggi_theme_mode';
+  static const String _rememberMeKey = 'sggi_remember_me';
+  static const String _rememberedEmailKey = 'sggi_remembered_email';
+  static const String _rememberedPasswordKey = 'sggi_remembered_password';
 
   final SharedPreferences _prefs;
 
@@ -69,6 +72,34 @@ class StorageService {
     await removeToken();
     await removeUser();
     await removePermissions();
+  }
+
+  // Remembered Credentials
+  bool getRememberMe() {
+    return _prefs.getBool(_rememberMeKey) ?? false;
+  }
+
+  String? getRememberedEmail() {
+    return _prefs.getString(_rememberedEmailKey);
+  }
+
+  String? getRememberedPassword() {
+    return _prefs.getString(_rememberedPasswordKey);
+  }
+
+  Future<void> saveRememberedCredentials({
+    required String email,
+    required String password,
+  }) async {
+    await _prefs.setBool(_rememberMeKey, true);
+    await _prefs.setString(_rememberedEmailKey, email);
+    await _prefs.setString(_rememberedPasswordKey, password);
+  }
+
+  Future<void> clearRememberedCredentials() async {
+    await _prefs.setBool(_rememberMeKey, false);
+    await _prefs.remove(_rememberedEmailKey);
+    await _prefs.remove(_rememberedPasswordKey);
   }
 
   // Theme

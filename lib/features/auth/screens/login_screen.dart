@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:window_manager/window_manager.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../core/network/backend_status_provider.dart';
+import '../../../core/widgets/backend_status_badge.dart';
 import '../providers/auth_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -13,9 +14,22 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController(text: 'hunkfull@gmail.com');
-  final _passwordController = TextEditingController(text: '123456');
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _rememberMe = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final storage = ref.read(storageServiceProvider);
+    final remember = storage.getRememberMe();
+    if (remember) {
+      _rememberMe = true;
+      _emailController.text = storage.getRememberedEmail() ?? '';
+      _passwordController.text = storage.getRememberedPassword() ?? '';
+    }
+  }
 
   @override
   void dispose() {
@@ -27,12 +41,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
+    final storage = ref.read(storageServiceProvider);
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
     final success = await ref.read(authProvider.notifier).login(
-      _emailController.text,
-      _passwordController.text,
+      email,
+      password,
     );
 
-    if (!success && mounted) {
+    if (success) {
+      if (_rememberMe) {
+        await storage.saveRememberedCredentials(
+          email: email,
+          password: password,
+        );
+      } else {
+        await storage.clearRememberedCredentials();
+      }
+    } else if (mounted) {
       final error = ref.read(authProvider).error;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -43,13 +70,63 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  Widget _buildTitleBar() {
+    return Container(
+      height: 36,
+      color: const Color(0xFF0F172A),
+      child: Row(
+        children: [
+          const Expanded(
+            child: DragToMoveArea(
+              child: Row(
+                children: [
+                  SizedBox(width: 14),
+                  Icon(Icons.fitness_center, size: 15, color: AppTheme.primary),
+                  SizedBox(width: 8),
+                  Text(
+                    'SGGI 2.0  •  Iniciar Sesión',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white70,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Minimizar',
+            onPressed: () async => await windowManager.minimize(),
+            icon: const Icon(Icons.minimize, size: 16, color: Colors.white70),
+            splashRadius: 16,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            constraints: const BoxConstraints(minHeight: 36),
+          ),
+          IconButton(
+            tooltip: 'Cerrar aplicación',
+            onPressed: () async => await windowManager.close(),
+            icon: const Icon(Icons.close, size: 16, color: Colors.white70),
+            hoverColor: Colors.red.shade700,
+            splashRadius: 16,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            constraints: const BoxConstraints(minHeight: 36),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
-    final backendStatus = ref.watch(backendStatusProvider);
 
     return Scaffold(
-      body: Row(
+      body: Column(
+        children: [
+          _buildTitleBar(),
+          Expanded(
+            child: Row(
         children: [
           // Left Banner / Hero Panel
           Expanded(
@@ -132,47 +209,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                     ],
                   ),
-                  InkWell(
-                    onTap: () => ref.read(backendStatusProvider.notifier).checkHealth(),
-                    borderRadius: BorderRadius.circular(4),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 10,
-                            height: 10,
-                            decoration: BoxDecoration(
-                              color: backendStatus.isOnline
-                                  ? const Color(0xFF107C41)
-                                  : backendStatus.isChecking
-                                      ? Colors.amber
-                                      : Colors.redAccent,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            backendStatus.isOnline
-                                ? 'Backend: localhost:3000 (Activo)'
-                                : backendStatus.isChecking
-                                    ? 'Backend: Conectando...'
-                                    : 'Backend: Desconectado',
-                            style: TextStyle(
-                              color: backendStatus.isOnline
-                                  ? Colors.white70
-                                  : backendStatus.isChecking
-                                      ? Colors.amber.shade200
-                                      : Colors.red.shade300,
-                              fontSize: 13,
-                              fontWeight: backendStatus.isOnline ? FontWeight.normal : FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                  const BackendStatusBadge(),
                 ],
               ),
             ),
@@ -205,7 +242,35 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           fontSize: 14,
                         ),
                       ),
-                      const SizedBox(height: 36),
+                      const SizedBox(height: 24),
+
+                      if (authState.error != null && !authState.isLoading) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: AppTheme.error.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: AppTheme.error.withValues(alpha: 0.4)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.info_outline, color: AppTheme.error, size: 18),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  authState.error!,
+                                  style: const TextStyle(
+                                    color: AppTheme.error,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
 
                       // Email Field
                       const Text(
@@ -262,7 +327,47 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           return null;
                         },
                       ),
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 14),
+
+                      // Remember Me Checkbox
+                      InkWell(
+                        onTap: () {
+                          final next = !_rememberMe;
+                          setState(() => _rememberMe = next);
+                          if (!next) {
+                            ref.read(storageServiceProvider).clearRememberedCredentials();
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(6),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: Checkbox(
+                                  value: _rememberMe,
+                                  onChanged: (value) {
+                                    final next = value ?? false;
+                                    setState(() => _rememberMe = next);
+                                    if (!next) {
+                                      ref.read(storageServiceProvider).clearRememberedCredentials();
+                                    }
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              const Text(
+                                'Recordar credenciales',
+                                style: TextStyle(fontSize: 13),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
 
                       // Login Button
                       SizedBox(
@@ -294,8 +399,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
             ),
           ),
-        ],
-      ),
+            ],
+          ),
+        ),
+      ],
+    ),
     );
   }
 }
